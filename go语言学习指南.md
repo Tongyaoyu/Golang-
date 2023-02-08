@@ -2090,3 +2090,347 @@ invoker.Call("hello")
 ## 7.错误
 
 ### 7.1 如何处理错误
+
+当一个函数正确执行之后，错误对应的返回值就是nil，而如果发生了任何问题，就会返回一个错误值。调用函数之后将错误值与nil进行比较，要么处理错误，要么工具这个错误返回一个自定义的错误。**Go语言中，始终用if表达式判断错误变量的值是否为nil。**
+
+```go
+func div2(num1 int, num2 int) (result int, remainder int, err error) {
+	if num2 == 0 {
+		err = errors.New("cant divide by 0")
+		return result, remainder, err
+	}
+	result, remainder = num1/num2, num1%num2
+	return result, remainder, nil
+}
+```
+
+error是一个内置接口，并且只定义了一个函数
+
+```go
+type error interface {
+    Error() string
+}
+```
+
+### 7.2 使用字符串创建简单错误
+
+Go的标准库提供了两种方式使用字符串创建错误
+
+第一种，errors.New
+
+```go
+func doubleEven(i int) (int,error) {
+    if i % 2 != 0 {
+        return 0, errors.New("only even numbers are processed")
+    }
+    return i * 2,nil
+}
+```
+
+第二种，fmt.Errorf
+
+```go
+func doubleEven(i int)(int,error){
+     if i % 2 != 0 {
+        return 0, fmt.Errorf("%d isnt an even number",i)
+    }
+    return i * 2,nil
+}
+```
+
+### 7.3 哨兵错误
+
+一个哨兵错误是一个命名的错误值。通常这些错误是导出的标识符，因为我们的想法是，使用你的API的用户可以将错误与这个给定值进行比较。
+
+按照约定，他们的名字都以Err开头，除了io.EOF这一例外情况
+
+```go
+var ErrFoo = errors.New("this is fine")
+```
+
+一旦定义了哨兵错误，这个错误就作为公共API的一部分了，因此要确保之后发布的版本都能向后兼容这个值。
+
+我们使用 == 来判断调用函数返回的错误是不是对应的哨兵错误
+
+### 7.4 错误是值
+
+自定义错误
+
+```go
+// 定义枚举
+type Status int
+const (
+	InvalidLogin Status = iota + 1
+	NotFound
+)
+
+// 定义一个实现error接口的结构体
+type StatusErr struct {
+	Status  Status
+	Message string
+}
+
+func (se StatusErr) Error() string {
+	return se.Message
+}
+
+// 定义一个函数，可以展现更多错误细节
+func LoginAndGetData(uid, pwd, file string) ([]byte, error) {
+	err := login(uid, pwd)
+	if err != nil {
+		return nil, StatusErr{
+			Status:  InvalidLogin,
+			Message: fmt.Sprintf("invalid credentials for user %s", uid),
+		}
+	}
+	data, err := getData(file)
+	if err != nil {
+		return nil, StatusErr{
+			Status:  NotFound,
+			Message: fmt.Sprintf("file %s not found", file),
+		}
+	}
+	return data, nil
+}
+```
+
+即使使用自定义的错误类型，也始终要用error作为返回错误结果的类型。这允许你从函数返回不同类型的错误。
+
+不要声明一个类型为自定义错误类型的变量，并将这个变量返回，看例子
+
+```go
+func GenerateError(flag bool) error {
+	var genErr StatusErr
+	if flag {
+		genErr = StatusErr{
+			Status: NotFound,
+		}
+	}
+	return genErr
+}
+
+func main() {
+	err := GenerateError(true)
+	fmt.Println(err != nil)	
+	err = GenerateError(false)
+	fmt.Println(err != nil)
+}
+
+//true true
+```
+
+为什么第二个传入false也是true呢？因为返回的是StatusErr类型的值，被error类型的返回参数接收，6.6小结说过，只有实际类型和值都为nil，返回的接口类型的结果变量才会是nil。如何解决呢？
+
+方式一：函数成功执行返回nil
+
+```go
+func GenerateError(flag bool) error {
+	//var genErr StatusErr	
+	if flag {
+		return StatusErr{
+			Status: NotFound,
+		}
+	}
+	return nil
+}
+
+//我觉得也可以这样写，但是很傻逼
+func GenerateError(flag bool) error {
+	var genErr StatusErr
+	if flag {
+		genErr = StatusErr{
+			Status: NotFound,
+		}
+		return genErr
+	}
+	return nil
+}
+```
+
+方式二：返回值的类型设置为error
+
+```go
+func GenerateError(flag bool) error {
+	var genErr error
+	if flag {
+		genErr = StatusErr{
+			Status: NotFound,
+		}
+	}
+	return genErr
+}
+```
+
+### 7.5 包装错误
+
+用fmt.Errorf函数包装，占位符用w%
+
+用errors.Unwrap函数解包
+
+```go
+func fileChecker(name string) error {
+	f,err := os.Open(name)
+	if err != nil {
+		return fmt.Errorf("in fileChecker %w",err)
+	}
+	f.Close()
+	return nil
+}
+
+func main() {
+	err := fileChecker("not_here.txt")
+	if err != nil {
+		fmt.Println(err)
+		if wrappedErr := errors.Unwrap(err); wrappedErr != nil {
+			fmt.Println(wrappedErr)
+		}
+	}
+}
+```
+
+### 7.6 Is和As
+
+**errors.Is：**判断被包装的error是否包含指定错误。
+
+```go
+var BaseErr = errors.New("the underlying base error") //定义哨兵错误
+
+func main() {
+   err1 := fmt.Errorf("wrap base: %w", BaseErr) //包装哨兵错误
+   err2 := fmt.Errorf("wrap err1: %w", err1) //再包装一次
+   println(err2 == BaseErr) // false
+   if !errors.Is(err2, BaseErr) { 
+      panic("err2 is not BaseErr")
+   }
+   println("err2 is BaseErr")
+}
+/*
+  打印结果：
+  false
+  err2 is BaseErr
+*/
+```
+
+**errors.As：**提取指定类型的错误，判断包装的 error 链中，某一个 error 的类型是否与 target 相同，并提取第一个符合目标类型的错误的值，将其赋值给 target。
+
+```go
+type TypicalErr struct {
+   e string
+}
+
+func (t TypicalErr) Error() string {
+   return t.e
+}
+
+func main() {
+   err := TypicalErr{"typical error"}
+   err1 := fmt.Errorf("wrap err: %w", err)
+   err2 := fmt.Errorf("wrap err1: %w", err1)
+   var e TypicalErr
+   if !errors.As(err2, &e) {
+      panic("TypicalErr is not on the chain of err2")
+   }
+   println("TypicalErr is on the chain of err2")
+   println(err == e)
+}
+/*
+  打印结果：
+  TypicalErr is on the chain of err2
+  true
+*/
+```
+
+### 7.7 使用defer包装错误
+
+没使用defer之前
+
+```go
+func DoSomeThings(val1 int, val2 string)(string,error){
+	val3,err := doThing1(val1)
+    if err != nil {
+        return "",fmt.Errorf("in DoSomeThings: %w",err)
+	}
+    val4,err := doThing2(val2)
+    if err != nil {
+        return "",fmt.Errorf("in DoSomeThings: %w",err)
+	}
+    result,err := doThing3(val3,val4)
+    if err != nil {
+        return "",fmt.Errorf("in DoSomeThings: %w",err)
+	}
+    return result,nil
+}
+```
+
+用了defer之后
+
+```go
+func DoSomeThings(val1 int, val2 string)(_ string,error){
+    defer func(){
+         if err != nil {
+        	return "",fmt.Errorf("in DoSomeThings: %w",err)
+		}
+    }()
+	val3,err := doThing1(val1)
+    if err != nil {
+        return "",err
+    }
+    val4,err := doThing2(val2)
+    if err != nil {
+        return "",err
+	}
+    return doThing3(val3,val4)
+}
+```
+
+### 7.8 panic和recover
+
+引起panic的原因可能是程序错误（比如读取切片的时候会越界），也可能是环境问题（比如内存不足）。一旦发生panic，当前运行的函数就会立即退出，并且函数中所包含的所有defer函数都会执行。当前defer都执行结束后，该函数的外层调用函数中的defer也会执行，知道达到主函数。接着程序会完全退出，打印错误以及响应的堆栈跟踪信息。
+
+可以主动触发panic
+
+```go
+func doPanic(msg string){
+    panic(msg)
+}
+func main(){
+    doPanic(os.Args[0])
+}
+```
+
+可以在defer中调用recover函数来判断panic是否发生，从而阻止程序退出
+
+```go
+func div(i int){
+    derfer func(){
+        if v := recover();v!=nil{
+            fmt.Println(v)
+        }
+    }()
+    fmt.Println(60/i)
+}
+
+func main(){
+    for _,val := range []int{1,2,0,6}{
+        div(val)
+    }
+}
+
+/*
+    60
+    30
+    runtime error:integer divide by zero
+    10
+*/
+```
+
+> recover必须在defer闭包中调用，因为当panic发生时，只有对应的defer函数才会执行
+
+
+
+## 8.模块、包和导入
+
+### 8.1 仓库、模块和包
+
+
+
