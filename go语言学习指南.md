@@ -2432,5 +2432,305 @@ func main(){
 
 ### 8.1 仓库、模块和包
 
+仓库是一个通用概念，项目的源代码通过版本控制系统存储在仓库之中。模块是Go库或者应用程序的根目录，存储在仓库之中。模块包含一个或多个包，用来组织模块结构。
+
+在使用第三方库之前，确保项目已经被声明成模块。每个模块都有一个全局的标识符。
+
+### 8.2 go.mod
+
+通过在项目的根目录定义一个有效的go.mod文件可以将Go代码组织为一个模块。执行以下命令创建go.mod文件
+
+```go
+go mod init MODULE_PATH
+```
+
+MODULE_PATH是用来标识这个模块的唯一每次。模块的路径是区分大小写的，为了减少混淆，不要在模块路径中使用大写字母
+
+```go
+go mod init tyy
+
+//go.mod
+module tyy
+
+go 1.19
+
+require(
+	github.com/shopspring/decimal v1.2.0
+)
+```
+
+如果没有依赖其他模块，require会被省略。
+
+这个文件有两个可选部分：replace部分用来覆盖依赖模块的路径，exclude部分指定避免使用某些特定版本的模块
+
+### 8.3 创建包
+
+#### 8.3.1 import和export
+
+**Go的import声明可以让我们访问其他包所导出的常量、变量、函数以及类型。包的导出标识符（标识符时变量、常量、类型、函数、方法或者结构体中字段等的名称）只有通过import才能被其他包访问**
+
+> 标识符大写就标识是导出。相应的，如果一个标识符的名字以小写或者下划线开头，那么它只能在当前包中使用
+
+#### 8.3.2 包的创建与访问
+
+pakage创建包，import导入包
+
+```go
+pakage math
+
+import(
+	"fmt"
+)
+```
+
+> 如果导入了一个包但并不使用任何它所导出的标识符，就会产生编译时错误。
+
+通常情况下，最好让包名和包含这个包的目录名一致，如果两者不一致，就不容易找到对应的包名
+
+#### 8.3.3 包的命名
+
+包名应该有意义。
+
+不应该使用util作为包名。比如，有两个函数ExtractNames用来从字符串中提取名字，FormatNames用来格式化名字。不要在util包中创建这两个函数，引用的时候会是：
+
+```go
+util.ExtractNames
+util.FormatNames
+```
+
+更好的方式是，在extract包中创建名为Names的函数，在format包中也创建名为Names的函数，调用就是
+
+```go
+extrct.Names
+format.Names
+```
+
+同时也要避免在包中创建函数时，重复使用包名相同或者相似的名字。例如，不要在 extract包中定义叫做ExtractNames函数。也有例外，例如标准库sort包中的Sort函数，context包中的Context接口。
+
+#### 8.3.4 覆盖包名
+
+有时候会出现导入的包命名冲突的情况。比如标准库生成随机数的包，一个是加密安全的（crypto/rand），另一个不是（math/rand）。此时需要对一个包重命名
+
+```go
+import(
+	crand "crypto/rand"
+    "math/rand"
+)
+//使用
+crand.Rrand
+rand.New()
+```
+
+使用.作为包名会将包中所有可导出的标识符放入当前包的命名空间，此时不再需要使用前缀方式应用他们。
+
+#### 8.3.5 包注释和godoc
+
+Go有专门的注释格式，使用该格式可以自动将注释转换为文档。这称为godoc格式，非常简单易用。只要遵循一下约定即可：
+
+- 直接在代码前写注释，中间不要有任何空行
+- 注释以//开头，后跟项目名
+- 如果注释有多段，每个段落由空注释隔开
+- 对有格式的注释内容需要使用缩进
+
+包级注释
+
+```go
+//Pakage  content...
+pakage money
+```
+
+结构体注释，以结构体名开头
+
+```go
+//Money content...
+//and content...
+type Money struct {
+    ...
+}
+```
+
+函数注释
+
+```go
+//Convert content...
+//
+//content...
+//content...
+func convert()int{
+    ...
+}
+```
+
+使用go doc或go doc PAKAGE_NAME查看godocs
+
+#### 8.3.6 内部包
+
+有时候我们希望模块内部的包之间能共享函数、类型、常量，但是不希望让他们成为公共API的一部分，可以使用internal包名。
+
+<img src="C:\Users\TYY\AppData\Roaming\Typora\typora-user-images\image-20230209095508100.png" alt="image-20230209095508100" style="zoom:25%;" />
+
+#### 8.3.7 尽量避免使用init函数
+
+init函数能让包在不调用任何方法的情况下设置初始状态。
+
+有一些包例如数据库驱动程序用init函数注册数据库驱动程序，但我们并不需要使用这个包的其他标识符，只用init函数。Go不允许导入包却不使用，为了解决这个问题，Go允许使用下划线组委导入包的名称。这样的包会触发相应的init函数，同时也保证了不能访问导入包中的任意标识符。
+
+```go
+import(
+	_ "github.com/lib/mysql"
+)
+```
+
+Go允许第一多个init函数，但是在一个包中应该只声明一个init函数。
+
+#### 8.3.8 循环依赖
+
+Go不允许包与包之间存在循环依赖。这意味着如果包A直接或简介导入了包B，那么包B就不能直接或间接导入包A。
+
+解决方法：
+
+1. 如果两个包互相依赖，那么它们可以合并为一个包
+2. 如果希望两个包保持独立，那么可以将导致循环依赖的部分移到其中一个包中，或者直接移道一个新包中
+
+#### 8.3.9 优雅地重命名和重组API
+
+使用一个模块一段时间后，你可能觉得它提供的API并不完美，并且想将一些导出的标识符重命名，这时为了避免破坏向后的兼容性，不要移除原有的标识符而是应该使用别名。
+
+对于函数或者方法，很简单，只需要声明一个新的函数或方法来调用原来的函数即可。
+
+重命名或者移动一个导出的类型必须使用别名
+
+```go
+type Foo struct {
+	x int
+    S string
+}
+
+func (f Foo) Hello() string {
+    ...
+}
+func (f Foo) goodbye() string {
+    ...
+}
+
+type Bar Foo //别名
+```
+
+以上别名由type关键字、别名、等号以及原类型别名构成。别名具有原类型的字段和方法。
+
+这个别名不经过类型转换就可以分配给用原类型的变量：
+
+```go
+func MakeBar() Bar{
+    bar := Bar{
+        a:20
+        B:"hello"
+    }
+    var f Foo = bar
+    return var
+}
+```
+
+> 别名只是类型的另外一个名字。如果想为这个类型添加新字段或者方法，则需要在原类型上添加
+
+不管原类型是否在一个包里，都可以添加别名。不过对于其他包中的变量，使用别名有一个限制：不能通过别名使用原类型未导出的方法和字段。
+
+有两种类型的可导出标识符不能有别名。第一种是包级变量，第二种是结构体中的字段。一旦确定了导出的结构体字段名，就无法为其创建别名。
+
+### 8.4 模块
+
+#### 8.4.1 导入第三方代码
+
+```go
+import(
+	"github/shopspring/decimal"
+)
+
+//运行go build 
+//go.mod
+module tyy
+
+go 1.19
+
+require(
+    github.com/learning-g-gbook/formatter v0.0.0-20230320230342453496-5sjdasidn898asojd //这里没有版本标记，Go生成了一个伪版本号
+	github.com/shopspring/decimal v1.2.0
+)
+```
+
+与此同时，创建了一个go.sum文件
+
+<img src="C:\Users\TYY\AppData\Roaming\Typora\typora-user-images\image-20230209102751374.png" alt="image-20230209102751374" style="zoom:25%;" />
+
+#### 8.4.2 版本
+
+定义版本的好处是可以给一个模块指定使用早期版本
+
+```go
+//go list 查看这个包有哪些版本可用
+$ go list -versions github/.....
+
+//go get 命令可以操作模块 更新依赖的版本
+$ go get github/...
+```
+
+#### 8.4.3 选择最小版本
+
+Go中的模块系统遵循选择最小版本（最新版本）原则。
+
+例如，一个模块依赖模块A、B、C，这三个模块又依赖模块D。模块A的go.mod显示它的依赖版本v1.1.0，模块B依赖v1.2.0，模块C则依赖v1.2.3。Go智慧到如模块D一次并选择版本v1.2.3。
+
+那么如果模块A在v1.1.0可以工作，v1.2.3不能工作，咋办？Go建议联系模块的作者修复兼容性问题。
+
+#### 8.4.4 更新到兼容版本
+
+如何显式地更新一个依赖项呢？
+
+假设用的是simpletax模块的v1.1.0版本，现在它又有三个新版本
+
+- v1.1.1修复了v1.1.0的问题，不增加新功能，属于补丁
+- v1.2.0添加了新功能
+- v1.2.1修复了1.2.0版本的问题，属于补丁
+
+```go
+go get github/learning-go-book/simpletax@v1.1.0 更新到版本v1.1.0
+
+go get -u=patch github/learning-go-book/simpletax 更新到版本v1.1.1，这个命令更新到当前版本的补丁版本
+
+go get -u patch github/learning-go-book/simpletax 版本升级到v1.2.1
+```
+
+#### 8.4.5 更新到不兼容版本
+
+假设simpletax已经有版本v2.0.0，这个版本和之前的版本API不一样
+
+为了处理不兼容行，有两个规则
+
+1. 模块的主版本号必须是递增的
+2. 除了1和0这两个主版本号，模块的路径必须以vN结束，这里N是主版本号
+
+```go
+github/learning-go-book/simpletax/v2
+
+//go.mod
+module tyy
+
+go 1.19
+
+require(
+	github/learning-go-book/simpletax v1.0.0
+    github/learning-go-book/simpletax/v2 v2.0.0
+)
+```
+
+可以使用go mid tidy移除不再使用的版本
+
+### 8.5 模块发布
+
+将自己的模块放到版本管理系统中就能供他人使用，无论是github还是私有的版本控制系统。尽量使用宽松的协议，例如BSD、MIT、Apache。
 
 
+
+## 9.Go的并发编程
+
+### 9.1 何时使用并发编程
