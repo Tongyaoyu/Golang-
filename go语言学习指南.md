@@ -321,7 +321,7 @@ x := []int{2,4,6,8}
 4.声明具体容量切片
 
 ```go
-x := mak([]int,5,10)
+x := make([]int,5,10)
 ```
 
 #### 2.2.6 派生切片
@@ -3471,8 +3471,6 @@ func GetCount() int {
 }
 ```
 
-
-
 ### 9.7 atomic
 
 Go还有另一种方法来保持数据在多个线程之的一致性。sync/atomic包提供了对现代CPU中内置的原子变量操作的访问，以add、swap、load、store或compare以及swap(CAS)方式操作一个适用于单个寄存器的值。通常来说，goroutine和互斥锁处理并发编程已经足够。
@@ -3608,3 +3606,210 @@ SUb方法返回一个time.Duration(两个time.Time实例之间的时间间隔)�
 #### 10.2.2 计时器和超时
 
 time包中包含一些函数，这些函数都返回一个通道，在指定时间后返回数据。time.After 函数返回仅输出一次的通道，而time.Tick返回的通道在每隔指定的time.Duration后都会返回一次。这些都在Go的并发编程情况下使用，以实现超时或循环任务。我们也可以用time.AfterFunc函数来触发一个函数在指定的time.Duration后运行。不要在复杂的程序外部使用time.Tick，因为底层的time.Ticker不能被关闭（因此不能被垃圾回收）。可以使用time.NewTicker函数代替，它返回*time.Ticker（它包含被监听的通道，以及重置和停止ticker的方法。
+
+### 10.3 encoding/json
+
+#### 10.3.1 使用结构体标签添加元数据
+
+```go
+{
+    "id":"12345",
+    "date_ordered":"2020-05-01T13:01:02Z",
+    "customer_id":"3",
+    "items":[{"id":"xyz123","name":"Thing 1"},{"id":"abc789","name":"Thing 2"}]
+}
+
+//定义数据类型来映射JSON数据
+type Order struct {
+    ID			string		`json:"id"`
+    DateOrdered time.Time	`date_ordered`
+    CustomerID	string		`json:"customer_id"`
+    Items		[]Item		`json:"items"`
+}
+type Item struct {
+    ID		string `json:"id"`
+    Name	string	`json:"name"`
+}
+```
+
+我们用结构体标签指定处理JSON的规则，结构体标签是写在结构中的字段之后的字符电。尽管结构体标签是带有反斜线的字符串，但它们不能超过一行。结构体标签由一个或多个标签和值成对组成，写成 tagName：'tagvalue” 并以空格分隔。因为它们只是字符串，编译器不能验证它们的格式是否正确，所以我们需要使用go vet执行格式检查。另外，请注意，所有这些字段都应该是导出字段。与其他包一样，encoding/json 包中的代码不能访问其他包中结构体上未导出的字段。
+
+对于JSON数据的处理，我们使用标签名json来指定与结构体字段对应JSON字段名。如果没有提供json标签，则默认假定JSON对象字段的名称与Go结构体宇段的名称一致。尽管有这种默认行为，但即使JSON字段名与结构体字段名相同，最好还是使用结构体标签来显式指定字段名。
+
+当从JSON反序列化到没有json标签的结构体字段时，名称匹配是不区分大小写的：而当把没有json标签的结构体字段序列化到JSON时，JSON字段的单词首字母总是大写的，因为该字段是导出的。
+
+如果一个字段在序列化或反序列化时需要忽略，请使用-作为名称。如果字段是空的，该字段应该被排除在结果之外，在json字段名后面加上，omitempty。
+
+#### 10.3.2 序列化与反序列化
+
+```go
+//反序列化 将json字符串转换为数据结构
+var o Order
+err := json.Unmarshal([]byte(data),&o) //data是JSON字符串
+if err!=nil{
+    return err
+}
+
+//序列化 将数据结构转换为json字符串
+var o = Order{...}
+out,err = json.Marshal(o) 
+```
+
+#### 10.3.3 JSON读取与写入
+
+json.Decoder和josn.Encoder类型分别对实现了io.Reader和io.Writer接口的任意类型执行读和写操作
+
+```go
+type Person struct {
+    Name string 	`json:"name"`
+    Age int			`json:"age"`
+}
+toFile := Person{
+    Name:"Fred",
+    Age:40,
+}
+```
+
+os.File类型同时实现了io.Reader和io.Writer接口，所以我们可以用它来演示json.Decoder和json.Encoder。首先，我们通过将临时文件传递给json.NewEncoder来获取一个 json.Encoder，然后将toFile作为参数传人json.Encoder的Encode方法，这样就可以将toFile写入临时文件：
+
+```go
+tempFile, err := ioutil.TempFile(os.TempDir(), "sample-")
+if err != nil {
+    panic(err)
+}
+defer os.Remove(tmpFile.Name())
+err = json.NewEncoder(tmpFile).Encode(toFile)
+if err != nil {
+	panic(err)
+}
+err = tmpFile.Close()
+if err != nil {
+	panic(err)
+}
+```
+
+一旦toFile被成功写人，我们就可以将JSON读取出来，通过将临时文件的引用传递给json.NewDecoder，然后在返回的json.Decoder变量上使用Person类型变量的引用作为调用参数，从而调用 Decode 方法，这样 Person 类型变量就可以从 JSON 读取到对应的值：
+
+```go
+tmpFile2, err := os.Open(tmpFile.Name())
+if err != nil {
+    panic(err)
+}
+var fromFile Person
+err = json.NewDecoder(tmpFile2).Decode(&fromFile)
+if err != nil {
+    panic(err)
+}
+err = tmpFile2.Close()
+if err != nil {
+    panic(err)
+}
+fmt.Printf("%+v\n",fromFile)
+```
+
+#### 10.3.4 JSON流的编码和解码
+
+假设有如下数据需要处理：
+```go
+{"name": "Fred","age": 40}
+{"name":"Mary","age": 21}
+{"name":"Pat","age":30}
+```
+
+我们假设它存储在一个名为data的字符串中，当然它也可以是一个文件，甚至是一个传人的 HTTP 请求(我们稍后会在 HTTP 服务端的工作原理中看到）。
+
+我们把这些数据存储到变量t中，一次处理一个JSON对象。
+
+与之前一样，我们用数据源初始化 json.Decoder，不同的是，这次我们使用 json.Decoder 的 More 方法与for循环对 JSON 对象的数据进行循环读取，它一次读一个JSON对象的数据
+
+```go
+dec := json.NewDecoder(strings.NewReader(data))
+for dec.More() {
+	err := dec.Decode(&t)
+	if err != nil {
+		panic(err)
+	}
+	// process t
+}
+```
+
+用json.Encoder 写入多个值与用它写入一个值一样。在这个例子中，我们要写人bytes.Buffer，但任何满足 io.Writer 接口的类型都可以使用：
+
+```go
+var b bytes.Buffer
+enc := json.NewEncoder(&b)
+for _,input := range allInputs {
+	t := process (input)
+	err = enc.Encode (t)
+    if err != nil {
+        panic(err)
+    }
+}
+out := b.String()
+```
+
+在这个例子中，数据流包含多个未包装在数组中的 JSON 对象，但你可以使用 Json.Decoder 从数组中读取单个对象，而无须一次性将整个数组加载到內存中。这可以极大地提高性能并减少内存的使用。
+
+#### 10.3.5 自定义JSON解析
+
+在实际开发中，经常会遇到需要定制json编解码的情况。比如，按照指定的格式输出json字符串，又比如，根据条件决定是否在最后的json字符串中显示或者不显示某些字段。如果希望自己定义对象的编码和解码方式，需要实现以下两个接口：
+
+```go
+type Marshaler interface {
+    MarshalJSON() ([]byte, error)
+}
+type Unmarshaler interface {
+    UnmarshalJSON([]byte) error
+}
+```
+
+对象实现接口后，编解码时自动调用自定义的方法进行编解码。
+
+下面例子中，自定义编解码方法。编码时，将map转化为字符串数组。解码时，将字符串数组转化为map。
+
+```go
+package main
+import (
+	"encoding/json"
+	"fmt"
+)
+type Bird struct {
+	A	map[string]string	`json:"a"`
+}
+func (bd *Bird) MarshalJSON() ([]byte, error) {
+	l := []string{} //空字符串切片
+	for _,v := range bd.A {
+		l = append(l,v)
+	}
+	return json.Marshal(l)
+}
+func (bd *Bird) UnmarshalJSON(b []byte) error {
+	l := []string{}
+	err := json.Unmarshal(b, &l)
+	if err != nil {
+		return err
+	}
+	for i,v := range l {
+		k := fmt.Sprintf("%d", i)
+		bd.A[k] = v
+	}	
+	return nil
+}
+func main() {
+	m := map[string]string{"1": "110", "2":"120", "3":"119"}
+	xiQue := &Bird{A:m}
+	xJson, err := json.Marshal(xiQue)
+	if err != nil {
+		fmt.Println("json.Marshal failed:", err)
+	}
+	fmt.Println("xJson:", string(xJson))	//xJson: ["119","110","120"]
+	b := `["apple", "orange", "banana"]`	
+	baoXiNiao := &Bird{A:map[string]string{}} //这里大括号代表类型为map[string]string，值为空
+	err = json.Unmarshal([]byte(b), baoXiNiao)
+	if err != nil {
+		fmt.Println("json.Unmarshal failed:", err)
+	}
+	fmt.Println("baoXiNiao:", baoXiNiao)	//baoXiNiao: &{map[0:apple 1:orange 2:banana]}
+}
+```
+
