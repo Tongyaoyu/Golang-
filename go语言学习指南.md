@@ -1847,7 +1847,7 @@ func (m Manager) FindNewEmployees() []Employee{
 }
 ```
 
-Employee成为一个内嵌字段，在内嵌字段上声明的任何字段或方法都会被提升到所包含的结构体上，并可以直接对其进行调用，以下代码有效
+Employee成为一个内嵌字段，**在内嵌字段上声明的任何字段或方法都会被提升到所包含的结构体上，并可以直接对其进行调用**，以下代码有效
 
 ```go
 m := Manager{
@@ -3482,3 +3482,129 @@ Go还有另一种方法来保持数据在多个线程之的一致性。sync/atom
 ## 10.Go语言标准库
 
 ### 10.1 标准io库
+
+io.Reader和io.Writer都只定义了一个方法
+
+```go
+type Reader interface {
+    Read(p []byte) (n int,err error)
+}
+
+type Writer interface {
+    Write(p []byte) (n int.err error)
+}
+```
+
+io.Writer接口的Writer方法接收一个字节切片，将其写入接口实现。它返回写入的字节数，如果出错则返回错误。
+
+io.Reader上的Read方法将切片作为参数并修改，调用时将最多len(p)的字节写入切片。返回成功的字节数。
+
+可能有人认为io.Reader接口应该这样定义
+
+```go
+type Reader interface {
+    Read() (p []byte, err error)
+}
+```
+
+关于io.Reader有三点要注意
+
+1. 我们创建一个一个缓冲区，并在每次调用r.Read时重用它。这使得我们可以使用一次内存分配，如果返回一个[]byte，那么每次调用都需要调用一个新的分配，每次分配都在堆上结束，这将给垃圾回收器带来相当多的工作。
+2. 我们根据r.Read返回的n值判断有多少字节被写入缓冲区，并从buf切片派生的子切片上循环读取数据。
+3. 当从r.Read返回的错误是io.EOF时，我们便可以指代已经完成了从r的读取。它表明io.Reader中已经没有数据可以读取。当返回io.EOF时，我们就完成了处理并返回结果。
+
+因为io.Reader和io.Writer都是十分简单的接口，所哟有许多不同方式实现它。
+
+例如，使用strings.NewReader函数从字符串创建io.Reader
+
+```go
+s := "one two three"
+sr := strings.NewReader(s)
+```
+
+io.Reader和io.Writer一般都结合装饰器使用，即在NewReader的基础上返回的实例，再用包装器包装一层
+
+```go
+func buildZipReader(fileName string)(*gzip.Reader,func(),error){
+    r,err := os.Open(fileName)
+    if err != nil {
+        return nil,nil,err
+    }
+    gr,err := gzip.NewReader(r)
+     if err != nil {
+        return nil,nil,err
+    }
+    return gr,func(){
+        gr.Close()
+        r.Close()
+    },nil
+}
+```
+
+还有其他 标准函数用于向现有的io.Reader和io.Writer实例添加新功能
+
+- io.MultiReader 它返回一个io.Reader，从多个io.Reader实例中逐个读取
+- io.LimitReader 它返回一个io.Reader，从提供的io.Reader中读取指定数量的字节
+- io.MultiWriter 同时写入多个io.Writer实例中
+
+io包中还定义了其他的但方法接口，如io.Closer和io.Seeker：
+
+```go
+type Closer interface {
+    Close() error
+}
+
+type Seeker interface {
+    Seek(offset int64, whence int)(int64, error)
+}
+```
+
+os.file等类型实现了io.Closer接口，因为它们需要在读或写操作完成后执行清理工作。通常情况下，Close是通过defer调用的。
+
+io.Seeker接口用于随机访问一个资源。参数whence的有效值是常数io.SeekStart、io.SeekCurrent、io.SeekEnd。这里whence是int类型
+
+io包中定义了以不同的方式组合上述的4个接口。分别是io.ReadCloser、io.ReadSeeker、io.ReadWriterCloser、io.ReadWriteSeeker、io.ReadWriter、io.WriteCloser和io.WriteSeeker。
+
+ioutil包提供了一些简单的实用工具函数来执行特定功能，比如一次性将整个io.Reader而没有实现io.Reader实现读入的字节切片、读写文件，以及处理临时文件。ioutil.ReadAll、ioutil.ReadFile和ioutil.WriteFile函数对小型数据源来说是不错的选择，但当处理大型数据时最好使用bufio包中的Reader、Writer和Scanner。
+
+### 10.2 time包
+
+有两类主要类型用于表示时间：time.Duration和time.Time。
+
+一个时间段用time.Duration来表示，它是一个基于int64的类型。Go可以表示的最小时间是1ns，但time包定义了time.Duration类型的常量来表示纳秒、微秒、毫秒、秒、分钟和小时。例如，使用以下方式表示2小时30分钟的持续时间
+
+```go
+d := 2*time.Hour + 30 * time.Minute
+```
+
+time.Duration里定义了几个满足fmt.stringer接口的方法，并通过String方法返回格式化的时间间隔字符串。它还有一些方法来获得小时、分钟、秒、毫秒、微秒或纳秒的数值。Truncate和Round方法将time.Duration截取或四舍五人到指定的time.Duration 的单位中。
+
+某个时间则用time.Time类型表示，并带有一个时区。可以通过函数time.Now获得对当前时间的引用。这将返回一个设置为当前本地时间的time.Time实例。
+
+> time.Time包含时区信息，这意味着不能直接使用==来检查两个time.Time实例是否指向同一个时间点。可以使用Equal方法，该方法会对时区进行修正。
+
+time.Parse函数将string转换为time.time，而Format方法可以将time.Time转换为string。
+
+Go使用了独有的日期和时间格式语言。他使用**January 2,2006 at 3:04:05PM MST**(美国山地时间)的格式进行格式化
+
+```go
+t,err := time.Parse("2006-02-01 15:04:05  -0700","2016-13-03 00:00:00 +0000")
+if err != nil{
+    return err
+}
+fmt.Println(t.Format("January 2,2006 at 3:0405PM MST"))		//March 13,2016 at 12:0000AM +0000
+```
+
+time.Time也有一些方法可以提取它的部分内容，包括Day、Month、Year、Hour、Minute、Second、Weekday、Clock（它将time.Time时间中的小时、分钟和秒的int值作为一个整体返回），已经Date（它将time.Time时间中的年、月、日的int值作为一个整体返回）。还可以用After、Before和Equal方法将一个time.Time实例与另一个进行比较。
+
+SUb方法返回一个time.Duration(两个time.Time实例之间的时间间隔)，Add方法这回一个 tine.Time（晚于时间间隔(time.Duration）之后的时间)，而AddDate方法会返回一个新的time.Time实例，该实例按指定的年数、月数和日数递增。tine.Time同样定义了Truncate和Round 方法。所有这些方法都是在值接收者上定义的，所以它们不会修改time.Time实例。
+
+#### 10.2.1 单调时钟时间
+
+大多数操作系统跟踪两种不同的时间：墙上时间和单调时间，前者与当前时间对应，后者从计算机启动的时间开始计算。追踪两种不同时间的原因是墙上时间不能单调递增。在夏令时、闰秒和NTP（Network Time Protocol，网络时间协议）更新墙上时间，可能会意外导致偏差。这在设置计时器或查找已过的时间量时可能会造成问题。
+
+为了解决这个潜在的问题，每当设置定时器或用time.Now 创建 time.Time 实例时，Go都使用单调时间来计算逝去的时间。这个实现是内置的，无须单独调用，计时器会自动使用它。如果两个time.Time实例都设置了单调时间，则sub方法使用单调时间来计算time.Duration，如果没有（因为其中一个或两个实例不是用time.Now创建的），则Sub方法使用实例中指定的时间来计算time.Duration。
+
+#### 10.2.2 计时器和超时
+
+time包中包含一些函数，这些函数都返回一个通道，在指定时间后返回数据。time.After 函数返回仅输出一次的通道，而time.Tick返回的通道在每隔指定的time.Duration后都会返回一次。这些都在Go的并发编程情况下使用，以实现超时或循环任务。我们也可以用time.AfterFunc函数来触发一个函数在指定的time.Duration后运行。不要在复杂的程序外部使用time.Tick，因为底层的time.Ticker不能被关闭（因此不能被垃圾回收）。可以使用time.NewTicker函数代替，它返回*time.Ticker（它包含被监听的通道，以及重置和停止ticker的方法。
