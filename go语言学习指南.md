@@ -3802,14 +3802,207 @@ func main() {
 	if err != nil {
 		fmt.Println("json.Marshal failed:", err)
 	}
-	fmt.Println("xJson:", string(xJson))	//xJson: ["119","110","120"]
+	fmt.Println("xJson:", string(xJson))	//自定义序列化 xJson: ["119","110","120"] 
 	b := `["apple", "orange", "banana"]`	
 	baoXiNiao := &Bird{A:map[string]string{}} //这里大括号代表类型为map[string]string，值为空
 	err = json.Unmarshal([]byte(b), baoXiNiao)
 	if err != nil {
 		fmt.Println("json.Unmarshal failed:", err)
 	}
-	fmt.Println("baoXiNiao:", baoXiNiao)	//baoXiNiao: &{map[0:apple 1:orange 2:banana]}
+	fmt.Println("baoXiNiao:", baoXiNiao)	//自定义反序列化 baoXiNiao: &{map[0:apple 1:orange 2:banana]}
 }
 ```
 
+### 10.4 net/http
+
+#### 10.4.1 客户端 
+
+net/http包定义了一个Client类型，用于发出HTTP请求和接收HTTP响应。net/http包中有一个默认的客户端实例（命名为DefaultClient），但我们应该避免在生产环境中使用它，因为它默认没有超时设置，我们应该实例化单独的客户端。我们只需要为整个程序创建一个http.Client，因为它可以正确地处理跨goroutine的多个同步请求：
+
+```go
+client := &http.Client{
+    Timeout: 30 * time.Second
+}
+```
+
+构建一个请求时，可以用http.NewRequestWithContext函数创建一个新的*http.Request实例，把一个上下文、方法和你要请求的URL传给它。如果你正在构建一个PUT、POST或PATCH请求，则需要将请求的内容设置成io.Reader类型，并作为最后一个参数传入。如果请求没有内容，则使用nil。
+
+```go
+req,err := http.NewRequestWithContext(context.Background(),http.MethodGet,"https://jsonplaceholder.typicode.com/todos/1",nil)
+if err != nil {
+    panic(err)
+}
+
+req.Header.Add("X-My-Client","Learning Go") //添加消息头
+res,err := client.Do(req)	//发送请求，接收数据
+if err != nil {
+    panic(err)
+}
+
+defer res.Body.Close()
+if res.StatusCode != http.StatusOK{
+    panic(fmt.Sprintf("unexpected status:got %v",res.Status))
+}
+fmt.Println(res.Header.Get("Content-Type"))
+var data struct{
+    UserID int 		`json:"userId"`
+    ID	   int 		`json:"id"`
+    Title string	`json:"title"`
+    Completed bool	`json:"completed"`
+}
+err = json.newDecoder(res.Body).Decode(&data)
+if err != nil {
+    panic(err)
+}
+fmt.Printf("%+v\n",data)
+```
+
+#### 10.4.2 服务端
+
+HTTP服务端基于http.server和http.Handler接口的基础构建。http.Client发送HTTP请求，而http.server负责监听HTTP请求。它是一个高性能的HTTP/2服务端，支持TLS。
+
+对服务端的请求由分配给Handler字段的http.Handler接口处理。这个接口只定义了一个方法：
+
+```go
+type Handler interface {
+	ServeHTTP(http.ResponseWriter, *http.Request)
+}
+```
+
+*http.Request定义了三个方法：http.Request与向HTTP服务端发送请求的类型相同。http.ResponseWriter接口定义了三个方法：
+
+```go
+type ResponseWriter interface {
+    Header() http.Header
+    Write([]byte) (int, error)
+    WriteHeader (statusCode int)
+}
+```
+
+这些方法必须按照特定的顺序调用。首先，调用Header来获得http.Header的实例，并设置你需要的任何响应头消息。如果你不需要设置响应头信息，则不用调用它。接下来，用HTTP状态码调用 WriteHeader，为请求的响应设置状态码（所有的状态码都在net/http包中定义为常量。这本来是一个定义自定义类型的好地方，但并没有实现。所有的状态码常量都是无类型的整数)。如果你正在发送一个状态码是200的响应，则可以跳过WriteReader。最后，调用Write方法来设置响应的内容。下面是一个处理程序
+
+```go
+type HelloHandler struct{}
+
+//实现http.Handler接口
+func (hh HelloHandler) ServeHTTP(w http.ResponseWriter,r *http.Request){
+    w.Write([]byte("Hello!\n"))	//设置响应内容
+}
+
+//实例化一个新的http.Server实例
+s := http.Server{
+    Addr: ":8080",
+    ReadTimeout: 	30*time.Second,
+    WriteTimeout:	90*time.Second,
+    IdleTimeout:	120*time.Second,
+    Handler:		HelloHandler{},		//使用自定义的handler
+}
+err := s.ListenAndServe()
+if err != nil{
+    if err != http.ErrServerClosed{
+        panic(err)
+    }
+}
+```
+
+Addr字段用于指定服务器启动后监听的主机和端口。如果不指定它们，服务器就默认在所有主机上监听标准的HTTP端口(80)。默认情況下是没有超时处理的，不过可以使用time.Duration为服务器的读、写和空闲指定超时的值。要确保设置这些值以正确处理恶意或破坏性的HTTP客户端请求。最后，将http.Handler指定给服务器实例的Handler宇段（这里的HelloHandler实现了http.Handler接口）。
+
+仅处理单个请求的服务器作用不大，所以Go标淮库包含一个请求路由器：*http.ServeMux。我们用http.NewServeMux函数创建一个实例。它满足http.Handler接口，所以可以被分配到http.server中的Handler字段。它还包括两个方法来调度请求。第一个方法直接调用Handle函数，它接收两个参数：路径和http.Handler。如果路径匹配，就会调用http.Handler。
+
+虽然我们可以创建http.Handler的实现，但更常见的模式是使用*http.ServeMux的HandleFunc方法：
+
+```go
+mux := http.NewServeMux()
+handler := HelloHandler{}
+//第一个方法
+mux.Handle("/", handler) //handler是实现了http.Handler的结构体实例
+//第二个方法
+mux.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("Hello!\n"))
+})
+```
+
+这个方法接收一个函数或闭包，并将其转换为http.HandlerFunc。对于简单的处理程序，一个闭包就足够了。对于依赖其他业务逻辑的复杂处理程序，可以使用结构体上的方法。
+
+因为http.ServeMux将请求分派给http.Handler实例，并且由于\*http.ServeMux实现了http.Handler，所以可以用多个相关的请求创建一个\*http.ServeMux实例，并将其注册到父http.ServeMux中
+
+```go
+person := http.NewServeMux()
+person.HandleFunc("/greet", func(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("greetings!\n"))
+})
+dog := http.NewServeMux()
+dog.HandleFunc("/greet", func(w http. Responsewriter, r *http. Request) {
+	w.Write([]byte("good puppy! \n"))
+})
+mux := http.NewServeMux()
+mux.Handle("/person/", http.StripPrefix("/person", person)) 
+mux.Handle("/dog/", http.StripPrefix("/dog", dog))
+```
+
+在上面的例子中，访问/person/greet的请求由属于person的处理程序进行处理，而访问/dog/greet的请求则由属于dog的处理程序进行处理。当我们用mux注册person和dog时，需要使用http.StripPrefix辅助函数来移除路径中mux已经处理过的部分。
+
+#### 10.4.3 中间件
+
+HTTP服务端最常见的要求之一是在多个处理程序中执行一组动作，比如检查用户是否登录、为请求计时或检查请求头。Go通过中间件模式处理这些跨领域的问题。中间件模式没有使用特殊的类型，而是使用函数来接收http.handler实例并返回http.handler。通常，返回的http.Handler是一个闭包，它被转换为http.HandlerFunc。这里有两个中间件生成器，一个用于请求的计时，另一个则用于简单的访问控制：
+
+```go
+func RequestTimer (h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		h.ServeHTTP(w, r)
+		end := time.Now()
+		log.Printf("request time for %5: %", r.URL.Path, end.Sub(start))
+    })
+}
+
+var securityMsg = []byte("You didn't give the secret password\n"),
+
+func TerribleSecurityProvider (password string) func(http.Handler) http.Handler {
+    return func(h http.Handler) http.Handler {
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request){
+            if r.Header. Get ("X-Secret-Password") != password {
+                w.WriteHeader(http.StatusUnauthorized)
+				w.Write(securityMsg)
+				return
+            }
+            h.ServeHTTP (w, r)
+        })
+    }
+}
+```
+
+这两个中间件的实现演示不了中间件是如何工作的。首先，我们进行设置操作或检查。如果检查没有通过，则在中间件中写入输出（通常有一个错误代码）并返回。如果一切正常，则调用处理程序的 ServeHTTP 方法。当它返回时，我们需要执行相应的清理操作。
+
+TerribleSecurityProvider展示了如何创建可配置的中间件。我们传人配置信息（在上面的示例中，是密码检查的配置)，然后该函数返回使用该配置信息的中间件。这里返回的的是一个闭包，其闭包中又会返回一个闭包，尽管这让人不容易理解。
+
+我们通过链式调用将中间件添加到请求处理程序中：
+
+```go
+terribleSecurity := TerribleSecurityProvider("GOPHER")
+
+mux.Handle("/hello", terribleSecurity(RequestTimer(
+    http.HandlerFunc(func(w http. ResponseWriter, r *http.Request){
+        w.Write([]byte("Hello!\n"))
+    })
+)))
+```
+
+我们将从 TerribleSecurityProvider 处得到中间件，然后用一系列函数调用来包装处理程序。这会首先调用 terribleSecurity 闭包，然后调用 RequestTimer，再调用实际处理请求逻辑的处理程序。
+
+因为*http.ServeMux实现了http.Handler接口，所以可以将一组中间件应用于所有已经注册的单个请求的路由器：
+
+```go
+terribleSecurity := TerribleSecurityProvider("GOPHER")
+wrappedMux := terribleSecurity(RequestTimer(mux))
+s := http.Server{
+    Addr: ":8080",
+    Handler:	wrappedMux,		//使用自定义的handler
+}
+```
+
+
+
+## 11.上下文
+
+### 11.1 什么是上下文
