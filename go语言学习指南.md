@@ -21,10 +21,10 @@ go语言会给声明但未赋值的变量默认赋零值
 
 一个值的字面形式称为一个字面量
 
-1. 整数字面量默认情况是十进制的数字序列，使用不同前缀代表不同进制。0b或0B代表二进制，0o或0O或0代表八进制，0x或0X代表十六进制。go语言可以将作为字面量中的间隔来增强可读性，且没有任何副作用。例如：1_234、1_2_3_4，只要不在开头和结尾就可以。
+1. 整数字面量默认情况是十进制的数字序列，使用不同前缀代表不同进制。0b或0B代表二进制，0o或0O或0代表八进制，0x或0X代表十六进制。go语言可以将_作为字面量中的间隔来增强可读性，且没有任何副作用。例如：1_234、1_2_3_4，只要不在开头和结尾就可以。
 2. 浮点数字面量由整数、小数点、小数部分组成。也可以表示成指数形式，如6.03e3，也可以使用_分割较长的浮点数字面量。
 3. 字符字面量由被一堆单引号包围的字符组成，例如Unicode字符('a')，8位八进制数('\141')，8位十六进制数('\x61')。
-4. 字符串字面量有两种格式：原始字符串字面量和解释型字符串字面量。前者可以包含除了反引号之外的任意字符，例如\`Greetings and "Salutations"`,后者需要转义，例如"Greetings and \n\\"Salutations\\""
+4. 字符串字面量有两种格式：原始字符串字面量（反引号风格）和解释型字符串字面量（双引号风格）。字符串字面量可以正常显示除了未转义的反斜杠、换行符和双引号以外的任何字符。转义就是加反引号或者转义符号\，例如\`Greetings and "Salutations"`，"Greetings and \n\\"Salutations\\"" 。
 
 需要说明的是，Go中字面量是无类型的，Go会为未声明类型的变量赋予默认类型，如var x=10的默认类型就是int类型
 
@@ -35,6 +35,8 @@ go语言会给声明但未赋值的变量默认赋零值
 #### 1.1.4 数值类型
 
 **1.整形**
+
+<img src="C:\Users\TYY\AppData\Roaming\Typora\typora-user-images\image-20230217195750731.png" alt="image-20230217195750731" style="zoom:15%;" />
 
 包含有符号和无符号整形。包含有int8 int16 int32 int64 uint8 uint16 uint32 uint64，其中有几个比较特殊
 
@@ -47,7 +49,9 @@ go语言会给声明但未赋值的变量默认赋零值
 
 **2.浮点型**
 
-两种：float32和float64，尽量使用float64，精度高，浮点数可以进行除了%意外的任意数学运算或比较运算。有几点除法特性
+两种：float32和float64，尽量使用float64，精度高，浮点数可以进行除了%以外的任意数学运算或比较运算。
+
+有几点除法特性
 
 - 任何非0的数除以浮点数0，将返回+Inf或-Inf
 - 0除以0时得到NaN
@@ -58,8 +62,8 @@ go语言会给声明但未赋值的变量默认赋零值
 两种：complex(64)和complex(128)，前者实部和虚部为float32，后者是float64
 
 - 当使用无类型常量或者字面量作为参数，complex也是无类型，默认是128
-- 当两个参数都是float32类型时，函数将返回complex64类型的值
-- 任何一个参数是float32类型时，函数将返回complex64类型的值
+- 当两个参数都是float32类型时，函数将返回complex64类型的值  
+- 任何一个参数是float32类型时，函数将返回complex64类型的值 
 - 其他情况都是complex128类型的值
 
 ```
@@ -70,7 +74,7 @@ x:=complex(2.5,3.1)
 
 **1.字符串** 
 
-string类型，可以使用比较运算符，使用+将字符串合并成一个新的字符串。字符串不可变，一旦修改了一个 字符串变量的值后，字符串其实已经不是原来的字符串了
+string类型，可以使用比较运算符，使用+将字符串合并成一个新的字符串。字符串不可变，一旦修改了一个字符串变量的值后，字符串其实已经不是原来的字符串了
 
 **2.字符**
 
@@ -78,7 +82,7 @@ string类型，可以使用比较运算符，使用+将字符串合并成一个�
 
 #### 1.1.6 显示类型转换
 
-Go语言不允许变量之间的自动类型转换，例如java的隐式类型转换，必须是显示的类型转换
+Go语言不允许变量之间的自动类型转换，例如java的隐式类型转换，Go中必须是显示的类型转换
 
 ```go
 var x int = 10
@@ -94,9 +98,9 @@ var有以下几种使用方式
 ```go
 var x int = 10 
 
-var x = 10  //10的默认类型时整型
+var x = 10  //10的默认类型是整型 
 
-var x int //int零值是0
+var x int //只声明，赋0值，int零值是0
 
 var x,y int = 10,20 //多个相同类型变量
 
@@ -105,7 +109,7 @@ var x,y int //多个零值
 var x,y = 10, "hello" //多个类型变量不一致
 
 var(
-	x   int
+    x   int
     y       = 20
     z   int = 30
     d,e     = 40,"hello"
@@ -122,10 +126,11 @@ x,y := 10,"hello"
 
 //:=允许对已赋值的变量再次赋值
 x := 10
-x,y := 30, "hello"
+x,y := 30, "hello2"
 ```
 
-短声明格式只能用来声明在函数内部的局部变量，如果在包级别声明变量，只能使用var
+> 短声明格式只能用来声明在函数内部的局部变量，如果在包级别声明变量，只能使用var
+>
 
 ### 1.3 const关键字
 
@@ -133,7 +138,7 @@ x,y := 30, "hello"
 const x int64 = 10
 ```
 
-常量和var一样，可以再包级别声明，也可以在函数中声明。const关键字在编译的时候赋值，可以使用以下方式赋值：
+const和var一样，可以在包级别声明，也可以在函数中声明。const关键字在编译的时候赋值，可以使用以下方式赋值：
 
 - 数字字面量
 - true和false
@@ -142,7 +147,8 @@ const x int64 = 10
 - 内置函数complex、real、img、len和cap
 - 包含预声明（内置）的值和运算符的表达式 
 
-为了避免参数传递给函数的变量被修改，go语言函数调用是值传递
+> 为了避免参数传递给函数的变量被修改，go语言函数调用是值传递
+>
 
 ### 1.4 有类型的常量和无类型的常量
 
@@ -168,7 +174,7 @@ go语言要求每个声明的局部变量必须被读取（read），声明局�
 
 ### 1.6 常量与变量的命名
 
-以字母或者下划线开头，名称中可以包含任意数字、下划线或者字母，go语言的字母和数字有更广泛的定义没任何Unicode字符的字母或者字符都是允许的。
+以字母或者下划线开头，名称中可以包含任意数字、下划线或者字母，go语言的字母和数字有更广泛的定义，任何Unicode字符的字母或者字符都是允许的。 
 
 > 约定使用驼峰命名法indexCounter，而不是蛇形命名法index_counter
 
@@ -183,14 +189,14 @@ go语言要求每个声明的局部变量必须被读取（read），声明局�
 ```go
 var x [3]int //都是0
 
-var x = [3]int{10，20，30}
+var x = [3]int{10,20,30}
 
 var x = [12]int{1,5:4,6,10:100,15} //[1,0,0,0,0,4,6,0,0,0,100,15]
 
 var x = [...]int{10,20,30} //不定义具体长度
 
 //可以使用==和!=来比较数组
-var x = [...]int{1,2,3}
+var x = [...]int{1,2,3} 
 var y = [3]int{1,2,3}
 fmt.Println(x==y) //true
 
@@ -267,7 +273,7 @@ x = append(x,y...)	//代表把y展开
 
 > 需要注意
 >
-> go是传值调用语言，append传入的切片是源切片的拷贝，返回的也是这个拷贝的值，最终需要将拷贝的新切片重新赋值给源切片，否则会编译时错误
+> go是传值调用语言，append传入的切片是源切片的拷贝，返回的也是这个拷贝的值，最终需要将拷贝的新切片重新赋值给原切片，否则会编译时错误
 
 #### 2.2.3 容量
 
@@ -279,7 +285,7 @@ x = append(x,y...)	//代表把y展开
 var x []int
 fmt.Println(len(x),cap(x))	//0 0
 
-x = append(x,10,20,30,40,50)
+x = append(x,10,20,30,40,50) //append的扩容机制导致容量扩至6
 fmt.Println(len(x),cap(x))	//5 6
 ```
 
@@ -326,7 +332,7 @@ x := make([]int,5,10)
 
 #### 2.2.6 派生切片
 
-从一个切片派生另一个切片，注意参数是左闭右开
+从一个切片派生另一个切片，注意中括号中的数字范围是左闭右开
 
 ```go
 x := []int{1,2,3,4}
@@ -347,9 +353,9 @@ fmt.Println(x)	//x:[1,2,30,4]
 fmt.Println(y)	//y:[1,2,30]
 ```
 
-> 子切片容量是父切片容量减去子切片的其实偏移量
+> 子切片容量是父切片容量减去子切片的起始偏移量 ，因为y起始偏移量是0，所以上述的y容量和x是一样的。
 
-使用完全派生表达式避免append影响，最后的数字定义了父切片容量中最后位置，将其减去起始偏移量就是子切片的实际容量
+使用完全派生表达式避免append影响，最后的数字定义了父切片容量中最后位置（意思就是子切片的容量不会超过这个位置，超过就要重新分配内存位置），将其减去起始偏移量就是子切片的实际容量 
 
 ```go
 x := make([]int,0,5)
@@ -378,7 +384,7 @@ x[0] = 10
 
 #### 2.2.8 copy
 
-copy创建一个独立于源切片的切片，他返回拷贝元素的数量
+copy将原切片复制到另一个切片中，按照其中较小的那个数组切片的元素个数进行复制，它返回拷贝元素的数量  
 
 ```go
 x := []int{1,2,3,4}
@@ -405,7 +411,7 @@ fmt.Println(y)	//[5,6]
 fmt.Println(d)	//[1,2,3,4]
 ```
 
-### 2.3 字符串、字符和字节
+### 2.3 字符串、字符和字节  
 
 使用方法如下
 
@@ -421,7 +427,7 @@ var s3 string = s[:5]	//s3 Hello
 var s4 string = s[6:]	//s4 there
 ```
 
-go是用一系列字节来表示字符串，而不是字符。UTF-8的码位长度为1~4个字节，上面的例子是一个字节长的UTF-8码位 
+go是用一系列字节来表示字符串，而不是字符。UTF-8的码位长度为1~4个字节，上面的例子是1个字节长的UTF-8码位，所以结果符合预期，看下面的例子
 
 ```go
 var s string = "Hello ☀"
@@ -436,9 +442,9 @@ fmt.Println(len(s))	//10 因为☀在utf8中是4个字节
 一个字符或字节可以转换为字符串
 
 ```go
-var a rune = 'x'
+var a rune = 'x'			//字符
 var s string = string(a)	//x
-var b byte = 'y'
+var b byte = 'y'			//字节
 var s2 string = string(b)	//y
 
 var x int = 65
@@ -498,7 +504,7 @@ fmt.Println(len(ages))	//0
 
 使用make创建的映射长度为0，并且长度可以超过初始定义长度。
 
-> 映射不可被比较，映射的可以使任何可比较的类型，这意味着切片和映射都不能最为映射的值
+> 映射不可被比较，映射的值是任何可比较的类型，这意味着切片和映射都不能作为映射的值 
 
 #### 2.4.1 映射的读写操作
 
@@ -506,25 +512,19 @@ fmt.Println(len(ages))	//0
 totalWins := map[string]int{}
 totalWins["Orcas"] = 1
 totalWins["Lions"] = 2
-fmt.Println(totalWins["Orcas"])
-fmt.Println(totalWins["Kittens"])
+fmt.Println(totalWins["Orcas"]) 	//1
+fmt.Println(totalWins["Kittens"])	//0
 totalWins["Kittens"]++
-fmt.Println(totalWins["Kittens"])
+fmt.Println(totalWins["Kittens"])	//1
 totalWins["Lions"] = 3
-fmt.Println(totalWins["Lions"])
-
-//结果为
-1
-0
-1
-3
+fmt.Println(totalWins["Lions"])		//3
 ```
 
 上例可以看到，尝试读取一个不存在的键时，映射会返回映射的值类型的零值
 
 #### 2.4.2 逗号和ok模式
 
-go提供了逗号和ok模式来检测返回零值是由于存在零值关联的键还是因为这个键不存在。ok为true代表该键存在，ok为false代表该键不存在
+go提供了逗号和ok模式来检测返回零值是由于存在零值关联的键，还是因为这个键不存在。ok为true代表该键存在，ok为false代表该键不存在
 
 ```go
 m := map[string]int{
@@ -563,17 +563,12 @@ vals := []int{5, 10, 2, 5, 8, 7, 3, 9, 1, 2, 10}
 for _, v := range vals {
     inSet[v] = true
 }
-fmt.Println(len(vals), len(inSet))
-fmt.Println(inSet[5])
-fmt.Println(inSet[500])
+fmt.Println(len(vals), len(inSet))	//11 8
+fmt.Println(inSet[5])	//true
+fmt.Println(inSet[500])	//false
 if inSet[100] {
     fmt.Println("100 is int the set")
 }
-
-//结果是
-11 8
-true 
-false
 ```
 
 ### 2.5 结构体
@@ -599,7 +594,7 @@ fred没有赋值，所以他的值是person结构体类型的零值，即结构�
 bob := person{}
 ```
 
-与映射不同的是，赋值为空结构体和不赋值是一样的，这两种情况都会将接固体的所有字段设置为零值。
+与映射不同的是，赋值为空结构体和不赋值是一样的，这两种情况都会将结构体的所有字段设置为零值。
 
 有两种方式定义非空结构体字面量
 
@@ -657,7 +652,7 @@ pet := struct{
 
 判断结构体是否可以比较取决于结构体的字段，若结构体中所有字段都是可以比较的类型，那么结构体就可以比较；如果字段中有映射或者切片则不能比较
 
-go不可以比较两个不同基础类型的变量，也不可以比较两个不同类型的结构体变量。但是go可以做到结构体间的类型转换，只需满足：两个结构体的所有字段、名称、顺序、类型相同。如下
+go不可以比较两个不同基础类型的变量，也不可以比较两个不同类型的结构体变量。但是go可以做到结构体间的类型转换，只需满足：两个结构体的所有字段的名称、顺序、类型相同。如下
 
 ```go
 type firstPerson struct{
@@ -680,7 +675,7 @@ type thirdPerson struct{
     name string
 }
 
-//不能将firstPerson实例转换为fourthPerson，因为他有一个额外的字段
+//不能将firstPerson实例转换为fourthPerson，因为他字段名不同
 type fourthPerson struct{
 	firstName string
 	age int
@@ -702,7 +697,7 @@ type fifthhPerson struct{
 
 每个使用声明的区域称为代码块，在函数之外声明的变量、常量、类型和函数的区域称为包代码块。
 
-当代码块外部又有与代码块内部同名的变量标识符时会发生什么呢？答案是代码块外部的变量将会被覆盖
+当代码块外部又有与代码块内部同名的变量标识符时会发生什么呢？答案是**代码块外部的变量将会被覆盖**
 
 #### 3.1.1 变量覆盖
 
@@ -753,7 +748,7 @@ if n == 0 {
 }
 ```
 
-go可以再if-else中声明变量，并且只在改代码块中使用
+go可以再if-else中声明变量，并且只在该代码块中使用
 
 ```go
 if n := rand.Intn(10); n == 0 {
@@ -837,7 +832,7 @@ for-range可以忽略索引变量
 
 ```go
 for _,v := range evenVals {
-	fmt.Println(i,v);
+	fmt.Println(v); 
 }
 //结果
 2
@@ -845,18 +840,19 @@ for _,v := range evenVals {
 ...
 ```
 
-for-range可以直接互虐第二个变量的值，只要索引值
+for-range可以直接忽略第二个变量的值，只要索引值
 
 ```go
 uniqueNames := map[string]bool{"Fred":true,"Raul":true,"Wilma":true}
-for k:= range uniqueNames{
+for k := range uniqueNames{
     fmt.Println(k);
 }
+//Fred Raul Wilma
 ```
 
 **迭代映射类型**
 
-无序的迭代，这是go语言为了防止哈希碰撞的DoS攻击做出的调整
+无序的迭代，这是go语言为了防止哈希碰撞的DoS攻击做出的调整 
 
 ```go
 m := map[string]int{
@@ -890,7 +886,7 @@ c 3
 **迭代字符串**
 
 ```go
-samplles := []string{"hello","apple_n!"}
+samples := []string{"hello","apple_π!"} 
 for _,sample := range samples{
     for i,r := range sample{
          fmt.Println(i,r,string(r))
@@ -918,7 +914,7 @@ for _,sample := range samples{
 8 33 !
 ```
 
-π的编码远大于一个字节的长度，所以for-range遍历字符串时，遍历的是字符，而不是字节.
+π的编码远大于一个字节的长度，所以for-range遍历字符串时，**遍历的是字符，而不是字节**
 
 **for-range的值是副本**
 
@@ -932,7 +928,7 @@ for i,v := range envenVals {
 fmt.Println(evenVals)	//[2,4,6,8,10,12]
 ```
 
-#### 3.3.6 for语句的标签
+#### 3.3.6 for语句的标签 
 
 ```go
 func main() {
@@ -942,7 +938,7 @@ outer:
 		for i, r := range sample {
 			fmt.Println(i, r, string(r))
 			if r == 'l' {
-				continue outer
+				continue outer	//outer代表这个for循环，continue outer就是遇到l就跳过下一个循环
 			}
 		}
 		fmt.Println()
@@ -1025,7 +1021,7 @@ goto语句指定一个指向代码行的标签，然后执行跳转到改行。�
 ```go
 	a := 10
 	goto skip
-	b := 20
+	b := 20			//跳过变量声明
 skip:
 	c := 30
 	fmt.Println(a, b, c)
@@ -1115,7 +1111,7 @@ func main(){
 可变长参数必须是输入参数列表中的最后一个或者唯一一个参数
 
 ```go
-，func addTo(base int, vals ...int) []int {
+func addTo(base int, vals ...int) []int {
 	out := make([]int, 0, len(vals))
 	for _, v := range vals {
 		out = append(out, base+v)
@@ -1124,7 +1120,7 @@ func main(){
 }
 
 func main(){
-    fmt.Println(addTo(3))
+    fmt.Println(addTo(3))			
 	fmt.Println(addTo(3, 2))
 	fmt.Println(addTo(3, 2, 4, 6, 8))
 	a := []int{4, 3}
@@ -1149,7 +1145,7 @@ func div2(num1 int, num2 int) (int, int, error) {
 	if num2 == 0 {
 		return 0,0,errors.New("cannot divide by zero")
 	}
-	return num1 / num2,num1%num2,nil	//返回值不需要加括号
+	return num1/num2, num1%num2, nil	//返回值不需要加括号
 }
 ```
 
@@ -1271,7 +1267,7 @@ func main() {
 
 #### 4.2.1 声明函数类型
 
-type关键字既可以第一struct也可以定义函数类型
+type关键字既可以定义struct也可以定义函数类型
 
 ```go
 type opFuncType func(int,int) int
@@ -1325,7 +1321,7 @@ func main() {
 	}
 	fmt.Println(people)
 	sort.Slice(people, func(i, j int) bool {
-		return people[i].LastName > people[j].LastName //为false交换
+		return people[i].LastName > people[j].LastName //倒序
 	})
 	fmt.Println(people)
 }
@@ -1355,7 +1351,7 @@ func main() {
 
 ```go
 func main() {
-	if len(os.Args)  < 2{
+	if len(os.Args) < 2{
 		log.Fatal("no file specified")
 	}
 	f,err := os.Open(os.Args[1])
@@ -1418,17 +1414,12 @@ func main() {
 		2: "second",
 	}
 	modMap(m)
-	fmt.Println(m)
+	fmt.Println(m)	// map[2:hello 3:goodbye]
 
 	s := []int{1, 2, 3}
 	modSlice(s)
-	fmt.Println(s)
+	fmt.Println(s)	//[2 4 6]
 }
-
-/*
-    map[2:hello 3:goodbye]
-    [2 4 6]
-*/
 ```
 
 > 由于映射和切片都是有指针实现，所以可以改变元素。
