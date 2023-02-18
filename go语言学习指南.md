@@ -273,7 +273,7 @@ x = append(x,y...)	//代表把y展开
 
 > 需要注意
 >
-> go是传值调用语言，append传入的切片是源切片的拷贝，返回的也是这个拷贝的值，最终需要将拷贝的新切片重新赋值给原切片，否则会编译时错误
+> go是传值调用语言，append传入的切片是原切片的拷贝，返回的也是这个拷贝的值，最终需要将拷贝的新切片重新赋值给原切片，否则会编译时错误
 
 #### 2.2.3 容量
 
@@ -1450,21 +1450,17 @@ x := "hello"
 pointerToX := &x
 ```
 
-***是间接寻址运算符。它位于指针类型变量之前，并返回所指向的值。这称为解引用：**
+***是间接寻址运算符，它位于指针类型变量之前，并返回所指向的值，这称为解引用**
 
 ```go
 func main() {
 	x := 10
 	pointerToX := &x
-	fmt.Println(pointerToX)
-	fmt.Println(*pointerToX)
+	fmt.Println(pointerToX)		//0xc0000180d8
+	fmt.Println(*pointerToX)	//10
 	z := 5 + *pointerToX
-	fmt.Println(z)
+	fmt.Println(z)				//15
 }
-
-//0xc0000180d8
-//10
-//15
 ```
 
 **内置函数new可以创建一个指针变量。他返回一个指向所提供类型的零值实例的指针**
@@ -1479,7 +1475,7 @@ fmt.Println(*x) //0
 
 如果有一个结构的字段是指向基本类型的指针，就不能直接向该字段赋值一个字面量
 
-```
+```go
 type person struct{
 	FirstName string
 	MiddleName *string
@@ -1493,7 +1489,7 @@ p := person{
 }
 ```
 
-有两种方法可以解决：第一种是引入一个变量来保存常量，第二种是写一个辅助函数，接受一个布尔型、数字型或字符串型，并返回一个指向该类型的指针
+有两种方法可以解决：第一种是引入一个变量来保存字面量，第二种是写一个辅助函数，接受一个布尔型、数字型或字符串型，并返回一个指向该类型的指针
 
 ```go
 func stringp(s string) *string{
@@ -1521,16 +1517,16 @@ p := person{
 
 这其中有几个含义
 
-第一个，当把一个nil指针传递给一个函数式，不能讲这个值改变为非nil的。如果已经对该指针赋值，只能重新赋值。
+第一个，当把一个nil指针传递给一个函数时，不能将这个值改变为非nil的。如果已经对该指针赋值，只能重新赋值。
 
 ```go
-func failedUpdate(g *int){
+func failedUpdate(g *int){//指针g和f都指向nil，但是g和f是不同的指针
     x := 10
-    g = &x
+    g = &x		
 }
 
 func main(){
-    var f *int //f is nil
+    var f *int //f is nil 因为它没有指向任何地址
     failedUpdate(f)
     fmt.Println(f)//prints nil
 }
@@ -1569,23 +1565,42 @@ func main(){
 
 映射：传入函数的映射所做的任何修改都会对传入的原始变量生效。
 
-切片：任何对切片内容的改变都会对原始变量产生影响，但使用append来给切片增加新元素并不会对原始变量产生影响，即使切片容量大于他的长度。
+切片：将一个切片传入一个**函数**有更复杂的行为。任何对切片内容的改变都会对原始变量产生影响，但使用append来给切片增加新元素并不会对原始变量产生影响，即使切片容量大于他的长度。
 
 这是因为一个切片被实现为一个有三个字段的结构：表示长度的int字段，表示容量的int字段以及一个指向内存块的指针。
 
-<img src="C:\Users\TYY\AppData\Roaming\Typora\typora-user-images\image-20230206144809763.png" alt="image-20230206144809763" style="zoom: 25%;" />
+<img src="C:\Users\TYY\AppData\Roaming\Typora\typora-user-images\image-20230206144809763.png" alt="image-20230206144809763" style="zoom: 23%;" />
 
-<img src="C:\Users\TYY\AppData\Roaming\Typora\typora-user-images\image-20230206144843287.png" alt="image-20230206144843287" style="zoom:25%;" />
+<img src="C:\Users\TYY\AppData\Roaming\Typora\typora-user-images\image-20230206144843287.png" alt="image-20230206144843287" style="zoom:20%;" />
 
-<img src="C:\Users\TYY\AppData\Roaming\Typora\typora-user-images\image-20230206144940418.png" alt="image-20230206144940418" style="zoom:25%;" />
+<img src="C:\Users\TYY\AppData\Roaming\Typora\typora-user-images\image-20230206144940418.png" alt="image-20230206144940418" style="zoom:20%;" />
 
-对长度和容量的改变不会反映在原切片上，因为它们只在副本中。改变容量意味着指向了一个新的更大的内存块。
+对长度和容量的改变不会反映在原切片上，因为它们只在副本中。改变长度和容量意味着指向了一个新的更大的内存块。
 
-<img src="C:\Users\TYY\AppData\Roaming\Typora\typora-user-images\image-20230206145126882.png" alt="image-20230206145126882" style="zoom:25%;" />
+```go
+func main() {
+	a := make([]int, 3, 10)
+	fmt.Println(len(a), cap(a))
+	a[0] = 1
+	a[1] = 2
+	a[2] = 3
+	addSome(a)
+	fmt.Println(a)
+	fmt.Println(len(a), cap(a))
+}
 
-如果切片副本的元素增加，并且有足够的容量不分配新的切片，那么副本的长度就会改变，新的值会被存储在共享的内存块中，但是源切片看不到这些值。
+func addSome(b []int) {	//append操作不会改变切片a
+	b = append(b, 10)
+}
+```
 
-<img src="C:\Users\TYY\AppData\Roaming\Typora\typora-user-images\image-20230206145306270.png" alt="image-20230206145306270" style="zoom:25%;" />
+
+
+<img src="C:\Users\TYY\AppData\Roaming\Typora\typora-user-images\image-20230206145126882.png" alt="image-20230206145126882" style="zoom:20%;" />
+
+如果切片副本的元素增加，并且有足够的容量不分配新的切片，那么副本的长度就会改变，新的值会被存储在共享的内存块中，但是原切片看不到这些值。
+
+<img src="C:\Users\TYY\AppData\Roaming\Typora\typora-user-images\image-20230206145306270.png" alt="image-20230206145306270" style="zoom:20%;" />
 
 ### 5.6 切片用作缓冲区
 
@@ -1652,11 +1667,11 @@ func (p Person) String string {
 }
 ```
 
-**方法的声明比函数多了一个额外的部分：接受者。它处于func和方法名之间。**
+**方法的声明比函数多了一个额外的部分：接收者。它处于func和方法名之间。**
 
-> 方法与函数都不能被重载。可以对不同类型使用相同方法名，但不能对同一类型中的两个不同方法使用相同方法名。
+> 方法与函数都不能被重载。可以对不同类型（结构体类型）使用相同方法名，但不能对同一类型中的两个不同方法使用相同方法名。
 
-#### 6.2.1 指针接受者和值接收者
+#### 6.2.1 指针接收者和值接收者
 
 ```go
 type Counter struct {
@@ -1665,7 +1680,7 @@ type Counter struct {
 }
 
 func (c *Counter) Increment(){
-	c.total++
+	c.total++			//就是*c.total，go语言自动转换
 	c.lastUpdate = time.Now()
 }
 
@@ -1727,9 +1742,9 @@ in main: total: 1, last update: 2023-02-07 11:19:39.3991278 +0800 CST m=+0.03159
 在一个nil实例上调用一个方法时会发生什么？
 
 1. 如果方法使用值接收者，则会得到一个panic，因为指针没有指向任何值
-2. 如果方法使用指针接收者，则可以在方法中检查实例为nil的情况（方法的参数复制这个nil指针的值给新的变量，此时参数相当被声明为nil）
+2. 如果方法使用指针接收者，则可以在方法中检查实例为nil的情况（方法的参数复制这个nil指针的值给新的变量，此时参数相当于被声明为nil）
 
-``` 
+``` go
 type IntTree struct {
     val int
     left,right *IntTree
@@ -1855,7 +1870,7 @@ fmt.Println(m.Description())
 
 > 我们可以在一个结构体在内嵌任何类型，而不仅仅是另一个结构体。这都可以将内嵌类型上的方法提升到包含它的结构体上。
 
-如果包含的结构体字段或方法与内嵌的字段或方法同名，则需要使用内嵌字段类型来应用被覆盖的字段或方法
+如果包含的结构体字段或方法与内嵌的字段或方法同名，则需要使用内嵌字段类型来引用被覆盖的字段或方法
 
 ```go
 type Inner struct {
@@ -1880,7 +1895,7 @@ fmt.Println(o.Inner.X)
 
 ### 6.4 接口
 
-接口定义，通常一“er”结尾命名，io.Reader、io.Closer、http.Handler
+接口定义，通常以“er”结尾命名，io.Reader、io.Closer、http.Handler
 
 ```go
 type Stringer interface {
@@ -1917,9 +1932,9 @@ type ReadCloser interface {
 
 ### 6.6 接口与nil
 
-Go中用nil来表示接口实例的零值，但这不像对具体类型那样简单。
+Go中用nil来表示接口实例的零值，但这不像对具体类型那样简单
 
-一个接口被认为是nil，则其类型和值都必须是nil。
+**一个接口被认为是nil，则其类型和值都必须是nil**
 
 ```go
 var s *string
@@ -1931,6 +1946,30 @@ fmt.Println(i == nil)	//false
 ```
 
 在Go运行时，接口被实现为一对指针，一个指向底层类型，一个指向基础值。只要类型是非空的那么接口就是非空的，因为你不可能指向一个没有类型的变量。如果值的指针是非空的，那么类型的指针也总是非空的。
+
+> **nil在Go语言中只能被赋值给指针和接口**。接口在底层的实现有两部分：type和data。
+>
+> 在源码中，显示地将nil赋值给接口时，接口的type和data都将为nil。此时，接口与nil值判断是相等的。但如果将一个带有类型的nil赋值给接口时，只有data为nil，而type不为nil，此时，接口与nil判断将不相等。
+
+```go
+type Stringer interface {
+	String() string
+}
+type Fish struct {
+	name string
+}
+
+func (f Fish) String() string {
+	return f.name
+}
+func main() {
+	var a Stringer = nil
+	fmt.Println(a == nil)	//true	因为显示地将nil赋值给接口
+	var b Fish
+	var c Stringer = b
+	fmt.Println(c == nil)	//false 因为c的data为nil，type不为nil，所以接口不等于nil
+}
+```
 
 ### 6.7 空接口
 
@@ -1948,7 +1987,8 @@ i = struct {
 
 interface{}并不是特例语法。空接口类型只是声明了该变量可以存储任何实现任意方法的类型的值。
 
-个人理解就是，interface{}这个接口没有声明方法，空的，相当于所有类型都实现了这个接口，所有interface{}类型的变量可以接受所有具体类型
+> 个人理解就是，interface{}这个接口没有声明方法，空的，相当于所有类型都实现了这个接口，所有interface{}类型的变量可以接受所有的具体类型
+>
 
 空接口常见的一个语法是当从外部读取一些数据时作为不确定数据的占位符
 
@@ -1969,7 +2009,7 @@ type LinkedList struct {
 
 Go提供了两种方法来判断一个接口类型是否有特定的具体类型，或者具体类型是否实现了另一个接口。
 
-1.类型断言。
+1.类型断言
 
 ```go
 value, ok := x.(T)
@@ -1989,6 +2029,22 @@ func main() {
     x = 10
     value, ok := x.(int)
     fmt.Print(value, ",", ok)	//10,true
+}
+
+type Stringer interface {
+	String() string
+}
+type Fish struct {
+	name string
+}
+
+func (f Fish) String() string {
+	return f.name
+}
+func main() {
+	var a Stringer = Fish{"timo"}
+	value, ok := a.(Stringer)
+	fmt.Println(value, ok)	//"timo",true
 }
 
 func main() {
@@ -2018,8 +2074,9 @@ func (c Cat) MakeNoise() {
 }
 
 func typeAssert(a animal) {
-	// a为 animal接口实现类，但是我们想实现诸如：对不同的实现类又不一样的操作这个就需要根据不同的实现类来进行不同的操作
-	switch a.(type) {
+    // a为animal接口实现类，但是我们想实现诸如：对不同的实现类有不一样的操作。
+    // 这个就需要根据不同的实现类来进行不同的操作
+	switch a.(type) { //获取a的类型
 	case Dog:
 		fmt.Println("the is a dog")
 		a.MakeNoise()
@@ -2064,7 +2121,7 @@ func (f FuncCaller) Call(p interface{}) {
 }
 ```
 
-上面代码只是定义了函数类型，需要函数本身进行逻辑处理，FuncCaller 无须被实例化，只需要将函数转换为 FuncCaller 类型即可，函数来源可以是命名函数、匿名函数或闭包，
+上面代码只是定义了函数类型，需要函数本身进行逻辑处理，FuncCaller 无须被实例化，只需要将函数转换为 FuncCaller 类型即可，函数来源可以是命名函数、匿名函数或闭包
 
 ```go
 // 将匿名函数转为FuncCaller类型, 再赋值给接口
@@ -2073,16 +2130,14 @@ var invoker = FuncCaller(func(v interface{}) {
 })
 
 // 使用接口调用FuncCaller.Call, 内部会调用函数本体
-invoker.Call("hello")
+invoker.Call("hello") //from function hello
 ```
-
-
 
 ## 7.错误
 
 ### 7.1 如何处理错误
 
-当一个函数正确执行之后，错误对应的返回值就是nil，而如果发生了任何问题，就会返回一个错误值。调用函数之后将错误值与nil进行比较，要么处理错误，要么工具这个错误返回一个自定义的错误。**Go语言中，始终用if表达式判断错误变量的值是否为nil。**
+当一个函数正确执行之后，错误对应的返回值就是nil，而如果发生了任何问题，就会返回一个错误值。调用函数之后将错误值与nil进行比较，要么处理错误，要么根据这个错误返回一个自定义的错误。**Go语言中，始终用if表达式判断错误变量的值是否为nil。**
 
 ```go
 func div2(num1 int, num2 int) (result int, remainder int, err error) {
@@ -2302,7 +2357,7 @@ func main() {
 */
 ```
 
-**errors.As：**提取指定类型的错误，判断包装的 error 链中，某一个 error 的类型是否与 target 相同，并提取第一个符合目标类型的错误的值，将其赋值给 target。
+**errors.As：**提取指定类型的错误，判断包装的 error 链中，某一个 error 的类型是否与 target 相同，并提取第一个符合目标类型的错误的值，将其赋值给 target。**`target`必须是一个 “指向一个实现了 `error` 接口” 的指针**
 
 ```go
 type TypicalErr struct {
@@ -2314,20 +2369,24 @@ func (t TypicalErr) Error() string {
 }
 
 func main() {
-   err := TypicalErr{"typical error"}
-   err1 := fmt.Errorf("wrap err: %w", err)
-   err2 := fmt.Errorf("wrap err1: %w", err1)
-   var e TypicalErr
-   if !errors.As(err2, &e) {
-      panic("TypicalErr is not on the chain of err2")
-   }
-   println("TypicalErr is on the chain of err2")
-   println(err == e)
+   	err := TypicalErr{"typical error"}
+    err1 := fmt.Errorf("wrap err: %w", err)
+    err2 := fmt.Errorf("wrap err1: %w", err1)
+    var e TypicalErr
+    if !errors.As(err2, &e) {
+	    panic("TypicalErr is not on the chain of err2")
+    }
+    println("TypicalErr is on the chain of err2")
+    println(err == e)  	
+    fmt.Println(err)
+    fmt.Println(e)	//为什么e是typical error，在哪里赋值的？在As方法中赋值的
 }
 /*
   打印结果：
   TypicalErr is on the chain of err2
   true
+  typical error
+  typical error   
 */
 ```
 
@@ -2376,7 +2435,7 @@ func DoSomeThings(val1 int, val2 string)(_ string,error){
 
 ### 7.8 panic和recover
 
-引起panic的原因可能是程序错误（比如读取切片的时候会越界），也可能是环境问题（比如内存不足）。一旦发生panic，当前运行的函数就会立即退出，并且函数中所包含的所有defer函数都会执行。当前defer都执行结束后，该函数的外层调用函数中的defer也会执行，知道达到主函数。接着程序会完全退出，打印错误以及响应的堆栈跟踪信息。
+引起panic的原因可能是程序错误（比如读取切片的时候会越界），也可能是环境问题（比如内存不足）。一旦发生panic，当前运行的函数就会立即退出，并且函数中所包含的所有defer函数都会执行。当前defer都执行结束后，该函数的外层调用函数中的defer也会执行，直到达到主函数。接着程序会完全退出，打印错误以及响应的堆栈跟踪信息。
 
 可以主动触发panic
 
@@ -2435,7 +2494,7 @@ func main(){
 go mod init MODULE_PATH
 ```
 
-MODULE_PATH是用来标识这个模块的唯一每次。模块的路径是区分大小写的，为了减少混淆，不要在模块路径中使用大写字母
+MODULE_PATH是用来标识这个模块的唯一名称。模块的路径是区分大小写的，为了减少混淆，不要在模块路径中使用大写字母
 
 ```go
 go mod init tyy
@@ -2458,7 +2517,7 @@ require(
 
 #### 8.3.1 import和export
 
-**Go的import声明可以让我们访问其他包所导出的常量、变量、函数以及类型。包的导出标识符（标识符时变量、常量、类型、函数、方法或者结构体中字段等的名称）只有通过import才能被其他包访问**
+**Go的import声明可以让我们访问其他包所导出的常量、变量、函数以及类型。包的导出标识符（标识符是变量、常量、类型、函数、方法或者结构体中字段等的名称）只有通过import才能被其他包访问**
 
 > 标识符大写就标识是导出。相应的，如果一个标识符的名字以小写或者下划线开头，那么它只能在当前包中使用
 
@@ -2508,11 +2567,11 @@ import(
     "math/rand"
 )
 //使用
-crand.Rrand
+crand.Read()
 rand.New()
 ```
 
-使用.作为包名会将包中所有可导出的标识符放入当前包的命名空间，此时不再需要使用前缀方式应用他们。
+使用.作为包名会将包中所有可导出的标识符放入当前包的命名空间，此时不再需要使用前缀方式引用他们。
 
 #### 8.3.5 包注释和godoc
 
@@ -2558,13 +2617,13 @@ func convert()int{
 
 有时候我们希望模块内部的包之间能共享函数、类型、常量，但是不希望让他们成为公共API的一部分，可以使用internal包名。
 
-<img src="C:\Users\TYY\AppData\Roaming\Typora\typora-user-images\image-20230209095508100.png" alt="image-20230209095508100" style="zoom:25%;" />
+<img src="C:\Users\TYY\AppData\Roaming\Typora\typora-user-images\image-20230209095508100.png" alt="image-20230209095508100" style="zoom:20%;" />
 
 #### 8.3.7 尽量避免使用init函数
 
 init函数能让包在不调用任何方法的情况下设置初始状态。
 
-有一些包例如数据库驱动程序用init函数注册数据库驱动程序，但我们并不需要使用这个包的其他标识符，只用init函数。Go不允许导入包却不使用，为了解决这个问题，Go允许使用下划线组委导入包的名称。这样的包会触发相应的init函数，同时也保证了不能访问导入包中的任意标识符。
+有一些包（例如数据库驱动程序）用init函数注册数据库驱动程序，但我们并不需要使用这个包的其他标识符，只用init函数。Go不允许导入包却不使用，为了解决这个问题，Go允许使用下划线组委导入包的名称。这样的包会触发相应的init函数，同时也保证了不能访问导入包中的其他任意标识符。
 
 ```go
 import(
@@ -2581,7 +2640,7 @@ Go不允许包与包之间存在循环依赖。这意味着如果包A直接或�
 解决方法：
 
 1. 如果两个包互相依赖，那么它们可以合并为一个包
-2. 如果希望两个包保持独立，那么可以将导致循环依赖的部分移到其中一个包中，或者直接移道一个新包中
+2. 如果希望两个包保持独立，那么可以将导致循环依赖的部分移到其中一个包中，或者直接移到一个新包中
 
 #### 8.3.9 优雅地重命名和重组API
 
@@ -2598,10 +2657,10 @@ type Foo struct {
 }
 
 func (f Foo) Hello() string {
-    ...
+   	return "hello"
 }
 func (f Foo) goodbye() string {
-    ...
+    return "goodbye"
 }
 
 type Bar Foo //别名
@@ -2609,16 +2668,17 @@ type Bar Foo //别名
 
 以上别名由type关键字、别名、等号以及原类型别名构成。别名具有原类型的字段和方法。
 
-这个别名不经过类型转换就可以分配给用原类型的变量：
+这个别名不经过类型转换就可以赋值给原类型的变量：
 
 ```go
-func MakeBar() Bar{
+func MakeBar() Bar{ //这个例子有问题
     bar := Bar{
-        a:20
-        B:"hello"
+        a:20,
+        B:"hello",
     }
     var f Foo = bar
-    return var
+    fmt.Println(f.Hello())
+    return bar
 }
 ```
 
@@ -2665,11 +2725,11 @@ $ go list -versions github/.....
 $ go get github/...
 ```
 
-#### 8.4.3 选择最小版本
+#### 8.4.3 选择最新版本
 
 Go中的模块系统遵循选择最小版本（最新版本）原则。
 
-例如，一个模块依赖模块A、B、C，这三个模块又依赖模块D。模块A的go.mod显示它的依赖版本v1.1.0，模块B依赖v1.2.0，模块C则依赖v1.2.3。Go智慧到如模块D一次并选择版本v1.2.3。
+例如，一个模块依赖模块A、B、C，这三个模块又依赖模块D。模块A的go.mod显示它的依赖版本v1.1.0，模块B依赖v1.2.0，模块C则依赖v1.2.3。Go只会导入模块D一次，并选择版本v1.2.3。
 
 那么如果模块A在v1.1.0可以工作，v1.2.3不能工作，咋办？Go建议联系模块的作者修复兼容性问题。
 
@@ -2695,7 +2755,7 @@ go get -u patch github/learning-go-book/simpletax 版本升级到v1.2.1
 
 假设simpletax已经有版本v2.0.0，这个版本和之前的版本API不一样
 
-为了处理不兼容行，有两个规则
+为了处理不兼容性，有两个规则
 
 1. 模块的主版本号必须是递增的
 2. 除了1和0这两个主版本号，模块的路径必须以vN结束，这里N是主版本号
