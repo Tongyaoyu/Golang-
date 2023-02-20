@@ -3695,6 +3695,8 @@ type Item struct {
 
 ```go
 //反序列化 将json字符串转换为数据结构
+//Unmarshal的第一个参数是json字符串，[]byte类型，第二个参数是接收json解析的数据结构
+//第二个参数必须是指针,否则无法接收解析的数据
 var o Order
 err := json.Unmarshal([]byte(data),&o) //data是JSON字符串
 if err!=nil{
