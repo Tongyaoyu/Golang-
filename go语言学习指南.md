@@ -2786,22 +2786,20 @@ require(
 
 ### 9.1 何时使用并发编程
 
-一般来说，素有程序都遵行三个步骤：获取数据、转换数据、输出结果。是否使用并发取决于数据在程序周的流动方式。假设有两个步骤，如果其中一个步骤执行时不依赖于另外一个步骤的输出结果，你去么这两个步骤可以并发；而如果一个步骤依赖于另一个步骤的输出结果，则两个步骤必须以顺序的方式进行。
+一般来说，所有程序都遵行三个步骤：获取数据、转换数据、输出结果。是否使用并发取决于数据在程序中的流动方式。假设有两个步骤，如果其中一个步骤执行时不依赖于另外一个步骤的输出结果，那么这两个步骤可以并发；而如果一个步骤依赖于另一个步骤的输出结果，则两个步骤必须以顺序的方式进行。
 
 如果并发运行的进程时间很短，就没有必要使用并发，因为并发也会消耗时间。并发编程常用于IO操作，因为向磁盘或网络读写的速度比除了最复杂的内存操作之外的所有操作都慢几千倍。
 
 ### 9.2 goroutine
 
-goroutine是由Go运行时管理的轻量级线程。当Go程序启动时，Go运行时会创建一些线程并启动一个goroutine拉运行程序。你的程序创建的所有goroutine（包括程序入口部分）都由Go运行时调度器自动分配这些线程，就像操作系统在CPU内核间调度线程一样。
+goroutine是由Go运行时管理的轻量级线程。当Go程序启动时，Go运行时会创建一些线程并启动一个goroutine来运行程序。你的程序创建的所有goroutine（包括程序入口部分）都由Go运行时调度器自动分配这些线程，就像操作系统在CPU内核间调度线程一样。
 
 goroutine有几个好处：
 
 - 创建goroutine比创建线程更快，因为你不是在操作操作系统级的资源
 - goroutine的初始栈比线程栈更小，并且可以根据需要增长。这使得goroutine的内存效率更高
 - 在goroutine之间切换比在线程之间切换更快，因为goroutine之间的切换完全发生在进程内部，避免了操作系统相对缓慢的调用
-- 调度器作为Go进程的一部分能够进行优化。当调度器与网络轮询器一起工作时，可以检测goroutine合适因为IO阻塞而无法调度。它还与垃圾回收器继承，确保工作在所有操作系统线程之间可以较为平均地分配给Go进程。
-
-
+- 调度器作为Go进程的一部分能够进行优化。当调度器与网络轮询器一起工作时，可以检测goroutine何时因为IO阻塞而无法调度。它还与垃圾回收器继承，确保工作在所有操作系统线程之间可以较为平均地分配给Go进程。
 
 在一个函数调用前放置go关键字可以启动一个goroutine。与其它函数一样，我们可以向他传递参数以初始化其状态。不过任何函数返回的值都会被忽略。
 
@@ -2819,13 +2817,13 @@ goroutine使用通道进行通信，与使用make函数创建切片和映射一�
 ch := make(chan int)
 ```
 
-通道也是引用类型。即，当把通道传递给函数时，传递的实际上是在传递指向该通道的指针。通道的零值是nil
+通道也是引用类型。即，当把通道传递给函数时，传递的实际上是在传递指向该通道的指针，通道的零值是nil。
 
 #### 9.3.1 读写和缓冲
 
 ```go
-a := <- ch	//读通道
-ch <- b		//写通道
+a := <-ch	//读通道
+ch <- b		//写通道 读写都是用<-
 ```
 
 > 每个写入通道的值只能被读取一次。如果多个goroutine从同一个通道中读取数据，写到通道中的一个值也只能被其中一个goroutine读取
@@ -2853,11 +2851,11 @@ for v := range ch{
 }
 ```
 
-与其他for-range循环不同的是，改通道只声明了一个变量，也就是值。循环将一直持续到通道被关闭，遇到break或者return语句也会停止。
+与其他for-range循环不同的是，该通道只声明了一个变量，也就是值。循环将一直持续到通道被关闭，遇到break或者return语句也会停止。
 
 #### 9.3.3 关闭通道
 
-当完成对一个通道的**写入**时，可以使用内置的close函数关闭通道
+**当完成对一个通道的写入时**，可以使用内置的close函数关闭通道
 
 ```go
 close(ch)
@@ -2865,7 +2863,7 @@ close(ch)
 
 **一旦通道被关闭**，任何试图写入通道或再次关闭该通道的操作都会发生panic，但可以读取被关闭的通道。
 
-如果是缓冲通道，并且还有一些值没被读取，这些值任然可以读取，按序依次返回。
+如果是缓冲通道，并且还有一些值没被读取，这些值仍然可以读取，按序依次返回。
 
 ```go
 ch1 := make(chan int, 5)
@@ -2875,11 +2873,11 @@ ch1 <- 3
 ch1 <- 4
 close(ch1)
 for v := range ch1 {
-    fmt.Println(v)
+    fmt.Println(v)		//1 2 3 4
 }
 ```
 
-如果是无缓冲的，过着尽管是有缓冲但是通道没有任何值，则返回通道类型的零值
+如果是无缓冲的，或者尽管是有缓冲但是通道没有任何值，则返回通道类型的零值
 
 这导致了一个问题：当我们从通道中读取到零值时，如何区分这是被写入的零值，还是因为通道关闭而返回的零值呢？
 
@@ -2891,7 +2889,7 @@ ok为true，那么通道是打开的，如果是false，则通道是关闭的。
 
 #### 9.3.4 通道的行为
 
-通道有序到不同的状态，每个状态在读取、写入或关闭时都有不同的行为
+通道有许多不同的状态，每个状态在读取、写入或关闭时都有不同的行为
 
 |      | 无缓冲、打开         | 无缓冲、关闭                                 | 有缓冲、打开               | 有缓冲、关闭                                                 | nil      |
 | ---- | -------------------- | -------------------------------------------- | -------------------------- | ------------------------------------------------------------ | -------- |
@@ -2903,7 +2901,7 @@ ok为true，那么通道是打开的，如果是false，则通道是关闭的。
 
 ### 9.4 select语句
 
-如果可以执行两个并发操作，有限执行哪一个？我们不能偏好某个操作，否则就医院无法处理某些情况。这就是所谓的饥饿。
+如果可以执行两个并发操作，优先执行哪一个？我们不能偏好某个操作，否则就永远无法处理某些情况。这就是所谓的饥饿。
 
 使用select关键字允许一个goroutine从一组，通道中读取或者写入。他看起来很像一个，空switch语句。
 
@@ -2922,7 +2920,7 @@ select {
 
 select中的每个case语句都是对一个通道的读或写操作。
 
-如果多个case语句都对通道有读或写，会如何？select会从任何一个可执行的case语句中随机挑选，顺序并不重要解决了饥饿问题。
+如果多个case语句都对通道有读或写，会如何？select会从任何一个可执行的case语句中随机挑选，顺序并不重要，这样就解决了饥饿问题。
 
 select语句随机选择的另一个好处是可以防止以不一致的顺序获取锁，从而避免死锁。
 
@@ -2976,7 +2974,7 @@ default:
 }
 ```
 
-在for-select循环中，如果只有一条default语句，肯定是错误的。当没有任何容易需要读或写时，每次循环都会执行default 语句。这使得for循环不断运行，从而占用大量的CPU资源。
+在for-select循环中，如果只有一条default语句，肯定是错误的。当没有任何内容需要读或写时，每次循环都会执行default 语句。这使得for循环不断运行，从而占用大量的CPU资源。
 
 ### 9.5 并发实践与模式
 
@@ -3013,7 +3011,7 @@ func main() {
 解决方法
 
 ```go
-//v1
+//1
 for _, v := range a {
     v := v
     go func() {
@@ -3021,7 +3019,7 @@ for _, v := range a {
     }()
 }
 
-//v2
+//2
 for _, v := range a {
     go func(val int) {
         ch <- val * 2
@@ -3034,10 +3032,10 @@ for _, v := range a {
 每次当你启动goroutine函数时，必须确保它最终会退出。与变量不同，Go运行时无法监测goroutine函数将不再被使用。如果goroutine不退出，即使啥也不做，调度器仍然会定期给它分配执行时间，这就拖慢了程序。这就是所谓的goroutine泄露。
 
 ```go
-func countTo(max int) <-chan int{
+func countTo(max int) <-chan int{ //这里返回的是一个只读chan，chan里面是int类型
 	ch := make(chan int)
 	go func() {
-		for i :=0;i<max;i++ {
+		for i:=0;i<max;i++ {
 			ch <- i
 		}
 		close(ch)
@@ -3058,7 +3056,10 @@ func main() {
 3
 4
 5
-
+6
+7
+8
+9
 ```
 
 在常见情况下，当遍历完所有的值，goroutine就会自动退出，然而如果提前退出循环，goroutine就会永远阻塞，等待从通道中读出一个值：
@@ -3079,7 +3080,6 @@ func main() {
 3
 4
 5
-
 ```
 
 #### 9.5.3 通道结束模式
@@ -3108,9 +3108,9 @@ func searchData(s string,searchers []func(string) []string) []string{
 
 启动的goroutine中的select语句要么等待在result通道上的写操作（当searcher函数返回时），要么等待读取done通道上的数据
 
-记住，在打开的通道上读取数据会阻塞，知道有可用的数据；而在关闭的通道上读取数据总是返回该通道的零值。
+记住，在打开的通道上读取数据会阻塞，直到有可用的数据；而在关闭的通道上读取数据总是返回该通道的零值。
 
-这意味着从done读取的case会保持阻塞，知道done被关闭。在searchData中，读取到写入result的第一个值，然后关闭done通道。
+这意味着从done读取的case会保持阻塞，直到done被关闭。在searchData中，读取到写入result的第一个值，然后关闭done通道。
 
 通道关闭后，goroutine收到信号，然后退出，防止他们泄露。
 
@@ -3120,7 +3120,7 @@ func searchData(s string,searchers []func(string) []string) []string{
 
 ```go
 func countTo(max int) <-chan int {
-	ch := make(chan int)
+    ch := make(chan int)
     done := make(chan struct{})
     cancel := func(){
         close(done)
@@ -3170,7 +3170,7 @@ type PressureGuage struct{
 func New(limit int) *PressureGuage{
     ch := make(chan struct{},limit)
     for i:=0;i<limit;i++ {
-        ch <- struct{}{}
+        ch <- struct{}{}	//空struct类型的struct
     }
     return &PressureGuage{
         ch:ch,
@@ -3216,7 +3216,7 @@ func main(){
 
 如果select中的一个case语句正在读取一个关闭的通道，将总可以读取成功，但是得到的是零值。每次select中case触发时，都需要以确保读取的值是有效的，如果无效就跳过当前的case代码。否则，程序就会浪费许多时间去读取没有意义的垃圾值。
 
-我们可以使用nil通道使得case无效。当检测到一个通道被关闭时，将该通道设置为nil。相关的case语句就不会再运行，因为nil通道读取医院没有返回值
+我们可以使用nil通道使得case无效。当检测到一个通道被关闭时，将该通道设置为nil。相关的case语句就不会再运行，因为nil通道读取永远没有返回值
 
 ```go
 for{
@@ -3228,7 +3228,7 @@ for{
             }
         case v,ok := <-in2:
             if !ok{
-				in2 = nil
+			   in2 = nil
                 continue
             }
         case <-done:
@@ -3328,7 +3328,7 @@ func processAndGather(in <-chan int,processor func(int) int,num int) []int {
 }
 ```
 
-该例子中，启动了一个监控的goroutine，有等待所有的执行goroutine退出。当他们退出是，监控的goroutine在输出通道是close。当out被关闭**且**者缓冲区为空时，for-range通道循环退出。最后，该函数返回处理后的值。
+该例子中，启动了一个监控的goroutine，用于等待所有的执行goroutine退出。当他们退出时，监控的goroutine在输出通道调用close。当out被关闭**且**者缓冲区为空时，for-range通道循环退出。最后，该函数返回处理后的值。
 
 #### 9.5.11 只执行一次代码
 
@@ -4056,7 +4056,7 @@ s := http.Server{
 
 ## 11.Context上下文
 
-控制并发有两种经典的方式，一种是WaitGroup，另外一种就是Context，今天我就谈谈Context。
+控制并发有两种经典的方式，一种是WaitGroup，另外一种就是Context，这一章就谈谈Context。
 
 ### **11.1 WaitGroup控制goroutine**
 
@@ -4084,13 +4084,13 @@ func main() {
 
 这是一种控制并发的方式，这种尤其适用于，好多个goroutine协同做一件事情的时候，因为每个goroutine做的都是这件事情的一部分，只有全部的goroutine都完成，这件事情才算是完成，这是等待的方式。
 
-在实际的业务种，我们可能会有这么一种场景：需要我们主动的通知某一个goroutine结束。比如我们开启一个后台goroutine一直做事情，比如监控，现在不需要了，就需要通知这个监控goroutine结束，不然它会一直跑，就泄漏了。
+在实际的业务中，我们可能会有这么一种场景：需要我们主动的通知某一个goroutine结束。比如我们开启一个后台goroutine一直做事情，比如监控，现在不需要了，就需要通知这个监控goroutine结束，不然它会一直跑，就泄漏了。
 
 ### **11.2 chan通知**
 
 我们都知道一个goroutine启动后，我们是无法控制他的，大部分情况是等待它自己结束，那么如果这个goroutine是一个不会自己结束的后台goroutine呢？比如监控等，会一直运行的。
 
-这种情况化，一直傻瓜式的办法是全局变量，其他地方通过修改这个变量完成结束通知，然后后台goroutine不停的检查这个变量，如果发现被通知关闭了，就自我结束。
+这种情况下，一直傻瓜式的办法是全局变量，其他地方通过修改这个变量完成结束通知，然后后台goroutine不停的检查这个变量，如果发现被通知关闭了，就自我结束。
 
 这种方式也可以，但是首先我们要保证这个变量在多线程下的安全，基于此，有一种更好的方式：chan + select 。
 
@@ -4116,15 +4116,14 @@ func main() {
 	stop<- true
 	//为了检测监控过是否停止，如果没有监控输出，就表示停止了
 	time.Sleep(5 * time.Second)
-
 }
 ```
 
 例子中我们定义一个`stop`的chan，通知他结束后台goroutine。实现也非常简单，在后台goroutine中，使用select判断`stop`是否可以接收到值，如果可以接收到，就表示可以退出停止了；如果没有接收到，就会执行`default`里的监控逻辑，继续监控，只到收到`stop`的通知。
 
-有了以上的逻辑，我们就可以在其他goroutine种，给`stop` chan发送值了，例子中是在main goroutine中发送的，控制让这个监控的goroutine结束。
+有了以上的逻辑，我们就可以在其他goroutine中，给`stop` chan发送值了，例子中是在main goroutine中发送的，控制让这个监控的goroutine结束。
 
-发送了`stop<- true`结束的指令后，我这里使用`time.Sleep(5 * time.Second)`故意停顿5秒来检测我们结束监控goroutine是否成功。如果成功的话，不会再有`goroutine监控中...`的输出了；如果没有成功，监控goroutine就会继续打印`goroutine监控中...`输出。
+发送了`stop<-true`结束的指令后，我这里使用`time.Sleep(5 * time.Second)`故意停顿5秒来检测我们结束监控goroutine是否成功。如果成功的话，不会再有`goroutine监控中...`的输出了；如果没有成功，监控goroutine就会继续打印`goroutine监控中...`输出。
 
 这种chan+select的方式，是比较优雅的结束一个goroutine的方式，不过这种方式也有局限性，如果有很多goroutine都需要控制结束怎么办呢？如果这些goroutine又衍生了其他更多的goroutine怎么办呢？如果一层层的无穷尽的goroutine呢？这就非常复杂了，即使我们定义很多chan也很难解决这个问题，因为goroutine的关系链就导致了这种场景非常复杂。
 
@@ -4309,6 +4308,10 @@ func WithValue(parent Context, key, val interface{}) Context
 
 `WithTimeout`和`WithDeadline`基本上一样，这个表示是超时自动取消，是多少时间后自动取消Context的意思。
 
+```go
+ctx, cancel := context.withTimeout(context.Background(),2*time.Second)	//两秒超时，自动调用cancel取消
+```
+
 `WithValue`函数和取消Context无关，它是为了生成一个绑定了一个键值对数据的Context，这个绑定的数据可以通过`Context.Value`方法访问到，后面我们会专门讲。
 
 大家可能留意到，前三个函数都返回一个取消函数`CancelFunc`，这是一个函数类型，它的定义非常简单。
@@ -4376,7 +4379,7 @@ func watch(ctx context.Context) {
 
 ### 12.1 反射
 
-和Java语言一样，Go也实现运行时反射，这为我们提供一种可以在运行时操作任意类型对象的能力。比如我们可以查看一个接口变量的具体类型，看看一个结构体有多少字段，如何修改某个字段的值等等。
+和Java语言一样，Go也实现**运行时**（有些时候编译的时候很多值、类型等都不能确定，运行时就可以使用反射处理）反射，这为我们提供一种可以在**运行时**操作任意类型对象的能力。比如我们可以查看一个接口变量的具体类型，看看一个结构体有多少字段，如何修改某个字段的值等等。
 
 #### 12.1.1 TypeOf和ValueOf
 
@@ -4388,7 +4391,7 @@ func watch(ctx context.Context) {
 func main() {
 	u:= User{"张三",20}
 	t:=reflect.TypeOf(u)
-	fmt.Println(t)
+	fmt.Println(t)	//main.User
 }
 
 type User struct{
@@ -4417,14 +4420,14 @@ type User struct{
 
 #### 12.1.2 reflect.Value转原始类型
 
-上面的例子我们可以通过`reflect.ValueOf`函数把任意类型的对象转为一个`reflect.Value`，那我们如果我们想逆向转过回来呢，其实也是可以的，`reflect.Value`为我们提供了`Inteface`方法来帮我们做这个事情。继续接上面的例子：
+上面的例子我们可以通过`reflect.ValueOf`函数把任意类型的对象转为一个`reflect.Value`，那我们如果我们想逆向转过回来呢，其实也是可以的，`reflect.Value`为我们提供了`Interface`方法来帮我们做这个事情。继续接上面的例子：
 
 ```go
 	u1:=v.Interface().(User)
 	fmt.Println(u1)
 ```
 
-这样我们就又还原为原来的`User`对象了,通过打印的输出就可以验证。这里可以还原的原因是因为在Go的反射中，把任意一个对象分为`reflect.Value`和`reflect.Type`，而`reflect.Value`又同时持有一个对象的`reflect.Value`和`reflect.Type`，所以我们可以通过`reflect.Value`的`Interface`方法实现还原。现在我们看看如何从一个`reflect.Value`获取对应的`reflect.Type`。
+这样我们就又还原为原来的`User`对象了，通过打印的输出就可以验证。这里可以还原的原因是因为在Go的反射中，把任意一个对象分为`reflect.Value`和`reflect.Type`，而`reflect.Value`又同时持有一个对象的`reflect.Value`和`reflect.Type`，所以我们可以通过`reflect.Value`的`Interface`方法实现还原。现在我们看看如何从一个`reflect.Value`获取对应的`reflect.Type`。
 
 ```go
 	t1:=v.Type()
@@ -4479,7 +4482,7 @@ const (
 
 #### 12.1.4 遍历字段和方法
 
-通过反射，我们可以获取一个结构体类型的字段,也可以获取一个类型的导出方法，这样我们就可以在运行时了解一个类型的结构，这是一个非常强大的功能。
+通过反射，我们可以获取一个结构体类型的字段，也可以获取一个类型的导出方法，这样我们就可以在运行时了解一个类型的结构，这是一个非常强大的功能。
 
 ```go
 	for i:=0;i<t.NumField();i++ {
@@ -4547,8 +4550,6 @@ func (u User) Print(prfix string){
 
 这里的参数是一个`Value`类型的数组，所以需要的参数，我们必须要通过`ValueOf`函数进行转换。
 
-关于反射基本的介绍到这里就结束了，下一篇再介绍一些高级用法，比如获取字段的tag，常用的比如把一个json字符串转为一个struct就用到了字段的tag。
-
 ### 12.2 unsafe
 
 unsafe，顾名思义，是不安全的，Go定义这个包名也是这个意思，让我们尽可能的不要使用它，如果你使用它，看到了这个名字，也会想到尽可能的不要使用它，或者更小心的使用它。
@@ -4578,7 +4579,7 @@ func main() {
 func Sizeof(x ArbitraryType) uintptr
 ```
 
-以上是`Sizeof`的函数定义，它接收一个`ArbitraryType`类型的参数，返回一个`uintptr`类型的值。这里的`ArbitraryType`不用关心，他只是一个占位符，为了文档的考虑导出了该类型，但是一般不会使用它，我们只需要知道它表示任何类型，也就是我们这个函数可以接收任意类型的数据。
+以上是`Sizeof`的函数定义，它接收一个`ArbitraryType`类型的参数，返回一个`uintptr`类型的值。这里的`ArbitraryType`不用关心，他只是一个占位符，为了文档的考虑导出了该类型，但是一般不会使用它，**我们只需要知道它表示任何类型**，也就是我们这个函数可以接收任意类型的数据。
 
 ```go
 // ArbitraryType is here for the purposes of documentation only and is not actually
@@ -4829,7 +4830,7 @@ func main() {
 }
 ```
 
-以上代码我们在编译的时候，会提示`cannot convert ip (type *int) to type *float64`，也就是不能进行强制转型。那如果我们还是需要进行转换怎么做呢？这就需要我们使用unsafe包里的Pointer了，下面我们先看看`unsafe.Pointer`是什么，然后再介绍如何转换。
+以上代码我们在编译的时候，会提示`cannot convert ip (type *int) to type *float64`，也就是不能进行强制转型。那如果我们还是需要进行转换该怎么做呢？这就需要使用unsafe包里的Pointer了，下面我们先看看`unsafe.Pointer`是什么，然后再介绍如何转换。
 
 #### 12.3.2 Pointer
 
@@ -4907,7 +4908,7 @@ type user struct {
 	*pAge = 20
 ```
 
-逻辑上看，以上代码不会有什么问题，但是这里会牵涉到GC，如果我们的这些临时变量被GC，那么导致的内存操作就错了，我们最终操作的，就不知道是哪块内存了，会引起莫名其妙的问题。 
+逻辑上看，以上代码不会有什么问题，但是这里会牵涉到GC，如果我们的这些临时变量被GC，那么导致的内存操作就错了，我们最终操作的，就不知道是哪块内存了，会引起莫名其妙的问题。 （temp可能会被GC掉）
 
 unsafe是不安全的，所以我们应该尽可能少的使用它，比如内存的操纵，这是绕过Go本身设计的安全机制的，不当的操作，可能会破坏一块内存，而且这种问题非常不好定位。
 
